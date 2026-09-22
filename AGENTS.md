@@ -113,6 +113,10 @@ the same call — `centerX` under 160 is left of centre in the 320×240 frame.
   after flattening. Moving either one breaks it.
 - **Type checker and `AiVisionObject | None`.** Narrow with `is not None` before
   attribute reads even where it is redundant at runtime.
+- **`ai_vision.color_detection(True)` is required.** Colour and code processing
+  is off by default. The sensor still reports `installed()` True and a moving
+  `timestamp()`, so the failure looks like "sees nothing" rather than
+  "misconfigured". `config.py` enables it right after constructing the sensor.
 - **The brain screen is static pixels.** `brain.screen.print()` paints once and
   has no link to the variable it formatted; redraw to update. It also does not
   blank the rest of the row, so a shorter string leaves the tail of the old one

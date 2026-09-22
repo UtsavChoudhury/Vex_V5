@@ -127,6 +127,9 @@ YELLOW_CONE_ID = 1               # colour "yellowcone"
 BLUE_CONE_ID = 2                 # colour "bluecone"
 
 ai_vision = AiVision(AI_VISION_PORT)
+# Colour and code processing is off until asked for; without this every
+# snapshot comes back empty even though the sensor is streaming.
+ai_vision.color_detection(True)
 
 VISION_MIN_WIDTH = 20
 VISION_MIN_HEIGHT = 20
