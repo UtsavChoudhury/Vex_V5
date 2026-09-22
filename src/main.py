@@ -29,7 +29,74 @@ INVERT_DRIVE = False
 left_motor = Motor(LEFT_PORT, GearSetting.RATIO_18_1, INVERT_DRIVE)
 right_motor = Motor(RIGHT_PORT, GearSetting.RATIO_18_1, not INVERT_DRIVE)
 
-dt = DriveTrain(left_motor, right_motor, 300, 320, 320, MM)
+# ---------------------------------------------------------------------------- #
+#  DRIVE GEOMETRY  --  every autonomous distance and angle is derived from these
+#
+#  The previous numbers (300, 320, 320) were the SDK's own defaults, not this
+#  robot. A turn is converted into wheel travel with
+#
+#      arc per wheel (mm) = PI * TRACK_WIDTH_MM * angle / 360
+#
+#  PI * TRACK_WIDTH_MM is the circle the wheels trace when the robot spins once
+#  in place; the two wheels split that circle by running opposite ways, so the
+#  formula already accounts for both of them moving and is NOT doubled. An angle
+#  that comes out too big therefore means one of the numbers below is wrong:
+#  every mm TRACK_WIDTH_MM is too large is angle the robot turns too far, and
+#  every mm WHEEL_DIAMETER_MM is too small does the same again.
+#
+#  MEASURE these, do not guess:
+#    WHEEL_DIAMETER_MM    across the tyre through the axle. VEX: 4" = 101.6,
+#                         3.25" = 82.55, 2.75" = 69.85.
+#    TRACK_WIDTH_MM       left wheel contact patch to right wheel contact patch.
+#                         This is the single biggest source of turn error.
+#    EXTERNAL_GEAR_RATIO  motor turns per wheel turn. Direct drive = 1.0; a 60t
+#                         wheel gear driven by a 36t motor gear = 60/36 = 1.667.
+#
+#  CHECK THE CARTRIDGE TOO: the GearSetting above has to match the physical
+#  cartridge colour -- green RATIO_18_1, blue RATIO_6_1, red RATIO_36_1.
+#  Declaring green with a blue cartridge fitted overshoots every move by exactly
+#  3x, and drives and turns overshoot together. If drive(1000) also travels far
+#  too far, suspect the cartridge or the wheel size, not the track width.
+# ---------------------------------------------------------------------------- #
+
+PI = 3.141592653589793
+
+WHEEL_DIAMETER_MM = 101.6     # 4" VEX wheel
+TRACK_WIDTH_MM = 320.0        # left contact patch to right contact patch
+WHEEL_BASE_MM = 320.0         # front axle to rear axle; unused by in-place turns
+EXTERNAL_GEAR_RATIO = 1.0     # motor revolutions per wheel revolution
+
+WHEEL_TRAVEL_MM = PI * WHEEL_DIAMETER_MM
+
+# Empirical trims applied on top of the geometry. Leave both at 1.0 until the
+# measurements above are real, then run calibrate_turn() / calibrate_drive():
+#
+#     SCALE = commanded / actually_achieved
+#
+# A robot asked for 180 that swung all the way to 360 wants TURN_SCALE = 0.5.
+DRIVE_SCALE = 1.00
+TURN_SCALE = 1.00
+
+# Autonomous move settings.
+AUTO_DRIVE_SPEED = 50     # percent
+AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
+
+# Free speed of the drive cartridge, in shaft degrees per second. Green 18:1 is
+# 200 rpm = 1200 dps; blue 6:1 is 600 rpm = 3600 dps; red 36:1 is 100 rpm = 600
+# dps. Only used to size move timeouts, so a rough value is fine -- but it has to
+# match the GearSetting above or long moves get cut short.
+MOTOR_MAX_DPS = 1200.0
+
+# A move is abandoned once it has taken this much longer than it should have.
+# Proportional, never flat: a flat timeout silently truncates any move that
+# legitimately takes longer, which looks exactly like under-travel.
+TIMEOUT_MARGIN = 2.0      # allow 2x the theoretical time...
+TIMEOUT_FLOOR_MS = 1000   # ...plus this, to cover acceleration on short moves
+
+# Kept in sync with the constants above so dt.drive_for/turn_for agree with the
+# helpers below, in case anything reaches for the drivetrain object directly.
+dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
+                WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
 
 # ---------------------------------------------------------------------------- #
 #  MANIPULATOR HARDWARE
@@ -180,19 +247,226 @@ ARM_MAX_DEG = 900.0
 #  AUTONOMOUS HELPERS
 # ---------------------------------------------------------------------------- #
 
-def drive(distance_mm, speed=50):
-    """Drive straight. Positive = forward, negative = backward."""
-    direction = FORWARD if distance_mm >= 0 else REVERSE
-    dt.drive_for(direction, abs(distance_mm), MM, speed, PERCENT)
+def wheel_degrees_for_distance(distance_mm):
+    """Motor shaft degrees needed to roll the robot `distance_mm` along the floor."""
+    return (distance_mm / WHEEL_TRAVEL_MM) * 360.0 * EXTERNAL_GEAR_RATIO * DRIVE_SCALE
 
-def turn(degrees, speed=50):
-    """Turn in place. Positive = right, negative = left."""
-    direction = RIGHT if degrees >= 0 else LEFT
-    dt.turn_for(direction, abs(degrees), DEGREES, speed, PERCENT)
+def wheel_degrees_for_turn(robot_degrees):
+    """
+    Motor shaft degrees, per side, to rotate the robot `robot_degrees` in place.
+
+    The wheels sit TRACK_WIDTH_MM/2 out from the centre of rotation, so a full
+    360 spin rolls each wheel PI * TRACK_WIDTH_MM along the floor. The two sides
+    cover that arc in opposite directions -- they do not each have to travel the
+    whole circle -- so there is no factor of two hiding in here.
+    """
+    arc_mm = PI * TRACK_WIDTH_MM * (robot_degrees / 360.0)
+    return (arc_mm / WHEEL_TRAVEL_MM) * 360.0 * EXTERNAL_GEAR_RATIO * TURN_SCALE
+
+def move_timeout_ms(wheel_deg, speed):
+    """
+    How long to give a move before calling it jammed: twice the time it should
+    take at the commanded speed, plus a second for acceleration.
+
+    Scaled to the move rather than fixed, because a fixed timeout is a trap --
+    a long drive or a multi-revolution calibration spin runs past it and gets
+    cut off part-way, which on the floor is indistinguishable from the geometry
+    being wrong.
+    """
+    dps = max(1.0, (abs(speed) / 100.0) * MOTOR_MAX_DPS)
+    return int((abs(wheel_deg) / dps) * 1000.0 * TIMEOUT_MARGIN) + TIMEOUT_FLOOR_MS
+
+def move_wheels(left_deg, right_deg, speed, timeout_ms=None):
+    """
+    Spin both sides through a set number of shaft degrees and wait for both.
+
+    HOLD rather than BRAKE: the motors keep servoing to the target after they
+    arrive, so whatever the robot coasts past under its own momentum gets pulled
+    back. BRAKE only stops resisting once the command ends, which leaves the
+    overshoot baked in and carries each segment's error into the next one.
+
+    The timeout means a wheel that jams against a wall ends the move instead of
+    stalling there for the rest of the match.
+    """
+    if timeout_ms is None:
+        timeout_ms = move_timeout_ms(max(abs(left_deg), abs(right_deg)), speed)
+
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
+    left_motor.set_timeout(timeout_ms, MSEC)
+    right_motor.set_timeout(timeout_ms, MSEC)
+
+    left_motor.spin_for(FORWARD, left_deg, DEGREES, speed, PERCENT, wait=False)
+    right_motor.spin_for(FORWARD, right_deg, DEGREES, speed, PERCENT, wait=False)
+
+    while left_motor.is_spinning() or right_motor.is_spinning():
+        wait(10, MSEC)
+
+def drive(distance_mm, speed=AUTO_DRIVE_SPEED):
+    """Drive straight. Positive = forward, negative = backward."""
+    degrees = wheel_degrees_for_distance(distance_mm)
+    move_wheels(degrees, degrees, speed)
+
+def turn(degrees, speed=AUTO_TURN_SPEED):
+    """
+    Turn in place. Positive = right, negative = left.
+
+    Right turn = left side forward, right side backward. right_motor is already
+    declared reversed, so FORWARD on it means robot-forward and the sign flip
+    here is the only thing that makes the sides oppose each other.
+    """
+    wheel_deg = wheel_degrees_for_turn(degrees)
+    move_wheels(wheel_deg, -wheel_deg, speed)
 
 def settle(timeout_ms=300):
     """Brief pause after a move so momentum doesn't bleed into the next segment."""
     wait(timeout_ms, MSEC)
+
+# ---------------------------------------------------------------------------- #
+#  CALIBRATION
+#
+#  THE TURN CALIBRATES ON ITS OWN. TURN_SCALE is a single multiplier on the end
+#  of the turn maths, so it absorbs every error at once -- wheel diameter, track
+#  width, gear ratio, and the wheel scrub that no geometry can predict. Nothing
+#  about it depends on the drive being right, so you never have to measure a
+#  distance to fix an angle, and DRIVE_SCALE can stay at 1.0 meanwhile.
+#
+#  Better still, you never have to measure an ANGLE either. Spin the robot a
+#  whole number of revolutions and the target is not a protractor reading, it is
+#  "the nose came back to the tape". Whole revolutions also multiply the error
+#  into view: at 3 spins a 5% scale error misses by 54 degrees, which anyone can
+#  see; at a quarter turn it is 4.5 degrees, which nobody can.
+#
+#  Calibrate on the surface you compete on. Foam tiles and a classroom floor do
+#  not scrub the same, and scrub is most of what is left once the geometry is
+#  right. Under-rotation especially is usually scrub: the wheels turn the
+#  degrees they were told to and the robot slides through part of it.
+# ---------------------------------------------------------------------------- #
+
+def tuner_screen(spins, speed):
+    """Current state of the tuner, redrawn after every keypress."""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("TURN TUNER   scale %.3f" % TURN_SCALE)
+    brain.screen.set_cursor(2, 1)
+    brain.screen.print("test %d spin(s) = %d deg @ %d%%" % (spins, spins * 360, speed))
+    brain.screen.set_cursor(3, 1)
+    brain.screen.print("A run   B unwind   X spins   Y speed")
+    brain.screen.set_cursor(4, 1)
+    brain.screen.print("up/down .010   R1/R2 .001")
+    brain.screen.set_cursor(5, 1)
+    brain.screen.print("short: raise    long: lower")
+
+def wait_release():
+    """Hold here until every tuner button is let go, so one press counts once."""
+    while (controller.buttonA.pressing() or controller.buttonB.pressing() or
+           controller.buttonX.pressing() or controller.buttonY.pressing() or
+           controller.buttonUp.pressing() or controller.buttonDown.pressing() or
+           controller.buttonR1.pressing() or controller.buttonR2.pressing()):
+        wait(20, MSEC)
+
+def turn_tuner():
+    """
+    Find TURN_SCALE on the robot, without a protractor and without ever
+    measuring a distance. Call this instead of autonomous() at the bottom of the
+    file, download once, and tune from the controller -- no rebuild per guess.
+
+    Lay a strip of tape on the floor and line the nose up against it. Press A.
+    The robot spins whole revolutions, so it is right when the nose lands back on
+    the tape.
+
+        landed SHORT of the tape  ->  raise the scale (up / R1)
+        went PAST the tape        ->  lower it        (down / R2)
+
+    Each run starts from where the last one stopped, so re-align to the tape
+    between runs -- or press B to spin the same amount back the other way, which
+    returns the robot to the mark and unwinds the cable dressing at the same
+    time.
+
+    Halve the step size as you close in. When it lands on the tape at 3 spins,
+    read the number off the brain screen, put it in TURN_SCALE at the top of the
+    file, and set the bottom of the file back to autonomous().
+    """
+    global TURN_SCALE
+
+    spins = 1
+    speed = AUTO_TURN_SPEED
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
+    tuner_screen(spins, speed)
+
+    while True:
+        if controller.buttonA.pressing():
+            wait_release()
+            turn(spins * 360, speed)
+            settle(300)
+        elif controller.buttonB.pressing():
+            wait_release()
+            turn(-spins * 360, speed)
+            settle(300)
+        elif controller.buttonUp.pressing():
+            wait_release()
+            TURN_SCALE = TURN_SCALE + 0.010
+        elif controller.buttonDown.pressing():
+            wait_release()
+            TURN_SCALE = max(0.010, TURN_SCALE - 0.010)
+        elif controller.buttonR1.pressing():
+            wait_release()
+            TURN_SCALE = TURN_SCALE + 0.001
+        elif controller.buttonR2.pressing():
+            wait_release()
+            TURN_SCALE = max(0.010, TURN_SCALE - 0.001)
+        elif controller.buttonX.pressing():
+            wait_release()
+            spins = spins + 1 if spins < 3 else 1
+        elif controller.buttonY.pressing():
+            wait_release()
+            # Scrub depends on speed, so tune at the speed you will drive at.
+            speed = speed + 25 if speed < 75 else 25
+
+        tuner_screen(spins, speed)
+        wait(50, MSEC)
+
+def calibrate_turn(degrees=360, speed=AUTO_TURN_SPEED):
+    """
+    One-shot version of the above, for when you would rather read an angle than
+    iterate. Mark the nose, run it, measure what the robot actually swept, then
+
+        TURN_SCALE = TURN_SCALE * degrees / measured_degrees
+
+    Note the multiply: the scale you already have is baked into what you just
+    watched, so this refines it rather than replacing it.
+    """
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("turn cal: asking for %d deg" % degrees)
+    brain.screen.next_row()
+    brain.screen.print("TURN_SCALE now %.3f" % TURN_SCALE)
+    settle(2000)
+    turn(degrees, speed)
+    brain.screen.next_row()
+    brain.screen.print("new = %.3f * %d / measured" % (TURN_SCALE, degrees))
+
+def calibrate_drive(distance_mm=1000, speed=AUTO_DRIVE_SPEED):
+    """
+    Same idea for straight-line travel: measure how far the robot really went and
+    set DRIVE_SCALE = distance_mm / measured_mm.
+
+    Not needed to fix the turn -- TURN_SCALE stands alone. Worth running when you
+    can, though: if the drive turns out to be off by roughly the factor the turn
+    was, the fault is shared (wheel diameter, gear ratio, or a cartridge that
+    isn't the colour the code claims) and it is better fixed at the source than
+    papered over by two separate scale factors.
+    """
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("drive cal: asking for %d mm" % distance_mm)
+    brain.screen.next_row()
+    brain.screen.print("DRIVE_SCALE now %.3f" % DRIVE_SCALE)
+    settle(2000)
+    drive(distance_mm, speed)
+    brain.screen.next_row()
+    brain.screen.print("new = %d / measured" % distance_mm)
 
 def run_path(path):
     """
@@ -302,13 +576,15 @@ def manipulator_init():
 # ---------------------------------------------------------------------------- #
 
 def autonomous():
-    dt.set_stopping(BRAKE)
+    # HOLD so each move ends on its target instead of coasting past it; the
+    # driver gets BRAKE back in user_control().
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
     manipulator_init()
     for _ in range(3):
         settle(3000)
         drive(2000)
         turn(180)
-        drive(5000)
 
 def user_control():
     brain.screen.clear_screen()
@@ -316,7 +592,8 @@ def user_control():
     brain.screen.next_row()
     brain.screen.print("L=port2  R=port1  invert=" + str(INVERT_DRIVE))
 
-    dt.set_stopping(BRAKE)
+    left_motor.set_stopping(BRAKE)
+    right_motor.set_stopping(BRAKE)
     manipulator_init()
 
     forward_power = 0.0
@@ -422,4 +699,5 @@ def user_control():
 
 # ---------------------------------------------------------------------------- #
 
-autonomous()
+#autonomous()
+user_control()
