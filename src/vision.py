@@ -1,25 +1,13 @@
-# ---------------------------------------------------------------------------- #
-#                                                                              #
-# 	Module:       vision.py                                                    #
-# 	Author:       utsavchoudhury                                               #
-# 	Description:  AI Vision sensor -- cone recognition                         #
-#                                                                              #
-# ---------------------------------------------------------------------------- #
+# vision.py -- AI Vision cone recognition.
 
 from vex import *
 from config import *
 
-# ---------------------------------------------------------------------------- #
-#  AI VISION HELPERS
-# ---------------------------------------------------------------------------- #
+
+# --- AI Vision ---
 
 def find_cone():
-    """Largest 'cone' colour code currently in view, or None.
-
-    The returned AiVisionObject carries centerX / centerY (pixels from the top
-    left), width, height, angle and score, so the same call works for aiming at
-    the cone later -- centerX below 160 means it sits left of centre.
-    """
+    """Largest 'cone' colour code currently in view, or None."""
     largest = None
     largest_area = 0
 
@@ -36,12 +24,7 @@ def find_cone():
     return largest
 
 def cone_detector():
-    """Watch continuously and announce the cone each time it comes into view.
-
-    Prints once on arrival rather than once per frame -- a 20 Hz loop shouting
-    the same line 20 times a second tells you nothing about when it actually
-    appeared.
-    """
+    """Watch continuously and announce the cone each time it comes into view."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("AI VISION  --  watching for cone")
@@ -60,9 +43,6 @@ def cone_detector():
             misses = misses + 1
             hits = 0
 
-        # `cone is not None` is redundant at runtime -- hits only climbs on a frame
-        # that found one -- but it is what tells the type checker that the attribute
-        # reads below are safe, instead of squiggling every cone.centerX as None.
         if cone is not None and not visible and hits >= VISION_CONFIRM_FRAMES:
             visible = True
             print("cone identified")
@@ -86,15 +66,7 @@ def cone_detector():
         wait(VISION_LOOP_MS, MSEC)
 
 def vision_report(seconds=20):
-    """Diagnostic: print every object the sensor returns, with its id.
-
-    Run this first, hold the cone in front of the sensor and watch the console.
-    A CODE line is the colour code -- the id on it is the number that belongs in
-    CONE_CODE_ID. If you only ever see COLOR lines and never a CODE line, the
-    sensor is seeing the two colours but not treating them as one object: the
-    halves are too far apart, or one of the two colour ranges is too tight to
-    match at the distance you are testing from.
-    """
+    """Diagnostic: print every object the sensor returns, with its id."""
     end_ms = brain.timer.time(MSEC) + seconds * 1000
 
     while brain.timer.time(MSEC) < end_ms:

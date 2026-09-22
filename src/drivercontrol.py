@@ -1,25 +1,13 @@
-# ---------------------------------------------------------------------------- #
-#                                                                              #
-# 	Module:       drivercontrol.py                                             #
-# 	Author:       utsavchoudhury                                               #
-# 	Description:  Driver control -- arcade mixing, slew, manipulator           #
-#                                                                              #
-# ---------------------------------------------------------------------------- #
+# drivercontrol.py -- arcade drive, slew limiting, manipulator.
 
 from vex import *
 from config import *
 
-# ---------------------------------------------------------------------------- #
-#  DRIVER HELPERS
-# ---------------------------------------------------------------------------- #
+
+# --- Driver helpers ---
 
 def slew(current, target, accel_step, decel_step):
-    """
-    Move `current` toward `target` by at most one step. Growing the command away
-    from zero -- or swinging it through zero into the other direction -- is the
-    case that breaks traction, so it gets the small step; shrinking it back
-    toward zero gets the large one.
-    """
+    """Move `current` toward `target` by at most one accel or decel step."""
     if target * current < 0 or abs(target) <= abs(current):
         limit = decel_step
     else:
@@ -41,20 +29,12 @@ def approach(current, target, step):
     return target
 
 def turn_taper(forward):
-    """
-    How much of the requested turn to keep at this forward speed. Full authority
-    when stopped, tapering to TURN_GAIN_FULL flat out so fast turns become arcs
-    rather than pivots.
-    """
+    """Fraction of the requested turn to keep at this forward speed."""
     x = min(1.0, abs(forward) / 100.0) ** TURN_TAPER_SHAPE
     return TURN_GAIN_REST + (TURN_GAIN_FULL - TURN_GAIN_REST) * x
 
 def fit_turn(forward, turn, priority):
-    """
-    A wheel peaks at abs(forward) + abs(turn). When that would clip past 100 the
-    plain mix trims both sides equally, which quietly eats forward speed. Here
-    the turn is what gives way, by `priority`, so the forward command survives.
-    """
+    """Scale forward and turn so a wheel cannot clip past 100, favouring forward."""
     if abs(forward) + abs(turn) <= 100.0:
         return turn
     room = 100.0 - min(abs(forward), 100.0)
@@ -63,15 +43,7 @@ def fit_turn(forward, turn, priority):
     return allowed if turn >= 0 else -allowed
 
 def show_claw_diagnostic(stick, power):
-    """
-    Three lines that separate the possible causes of a claw that will not open:
-
-      stick stays 0 when you push    -> the controller axis is not reaching us
-      stick moves, amps near 0       -> nothing is wired to CLAW_PORT
-      stick moves, amps high, no move-> jammed, or CLAW_TORQUE is too low to
-                                        beat the rubber bands
-      temp climbing toward 100%      -> motor is throttling itself back
-    """
+    """Print claw stick position and motor load to the brain screen."""
     brain.screen.set_cursor(4, 1)
     brain.screen.clear_line(4)
     brain.screen.print("claw stick %d  pwr %d" % (int(stick), int(power)))
@@ -84,9 +56,8 @@ def show_claw_diagnostic(stick, power):
         # Never let a diagnostic take the drive down mid-match.
         brain.screen.print("amps n/a on this SDK")
 
-# ---------------------------------------------------------------------------- #
-#  THE DRIVER LOOP
-# ---------------------------------------------------------------------------- #
+
+# --- Driver loop ---
 
 def user_control():
     brain.screen.clear_screen()
@@ -137,10 +108,6 @@ def user_control():
         turn_power = slew(turn_power, turn_target,
                           TURN_ACCEL_STEP, TURN_DECEL_STEP)
 
-        # Car-like reversing, off by default. When on, decide whether we are
-        # travelling backward from the ramped value so it tracks what the robot
-        # is actually doing rather than the raw stick. When off turn_sign stays
-        # at 1.0 and the nose simply follows the stick in both directions.
         if MIRROR_TURN_IN_REVERSE:
             if forward_power < -REVERSE_ENTER:
                 reverse_mode = True
