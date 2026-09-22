@@ -1,0 +1,123 @@
+# AGENTS.md
+
+Context for anyone — human or agent — working on this repo. Read this and
+`README.md` first; together with a skim of `src/config.py` they are the whole
+picture.
+
+## What this is
+
+A VEX V5 competition robot program. VEXcode VS Code extension, Python, SDK
+`V5_1_0_1_25`, downloads to slot 2.
+
+`README.md` covers operation: ports, controls, calibration procedure, AI Vision
+setup. This file covers how the code is put together and what will bite you.
+
+## Conventions
+
+**Comments stay short.** No block comments explaining rationale, no tutorial
+docstrings. If something needs explaining at length it goes in this file or
+`README.md`, with at most a one-line pointer in the code. One-line docstrings on
+functions are fine; paragraphs are not.
+
+**Commit as you go**, in logically scoped commits, without being asked.
+
+## The single-file constraint
+
+A V5 brain runs one Python file. `.vscode/vex_project_settings.json` has a single
+`python.main` key — VEXcode's own schema calls it "Path to python file to
+download to brain" — and no file list. So `from config import *` resolves in the
+editor and raises `ImportError` on the robot.
+
+`build.py` works around this by concatenating the modules in dependency order,
+dropping the editor-only imports, and writing `src/download.py`. It `compile()`s
+the result before writing, so a mistake surfaces as a build error rather than a
+line number pointing into a generated file.
+
+```
+python3 build.py       # before every download
+```
+
+`src/download.py` is generated and committed (so a fresh clone is immediately
+downloadable at a competition). Never edit it; its diffs are noise.
+
+## Layout
+
+| File | Contents |
+|------|----------|
+| `src/config.py` | every device object and every tunable constant; `manipulator_init()` |
+| `src/vision.py` | `find_cone`, `cone_detector`, `vision_report` |
+| `src/autonomousroutine.py` | wheel-degree maths, `drive`, `turn`, calibration, `turn_tuner`, `autonomous()` |
+| `src/drivercontrol.py` | `slew`, `turn_taper`, `fit_turn`, `user_control()` |
+| `src/main.py` | imports the above; `main()` selects the mode |
+| `build.py` | flattens `src/` into `src/download.py` |
+
+`MODULES` in `build.py` is the dependency order. A new module must be added
+there, after the modules it reads from.
+
+`manipulator_init()` lives in `config.py` rather than with the driver code
+because both modes call it.
+
+`.vscode/settings.json` puts `src` on `python.analysis.extraPaths` so the editor
+resolves the sibling imports.
+
+## Autonomous movement
+
+`drive()` and `turn()` compute wheel degrees explicitly rather than calling
+`DriveTrain.drive_for` / `turn_for`, so the maths is visible and tunable.
+
+A point turn is `arc_mm = PI * TRACK_WIDTH_MM * angle / 360`. `PI * TRACK_WIDTH`
+is the circle the wheels trace when the robot spins once in place; the two sides
+split that circle by counter-rotating. **The formula is not doubled** — there is
+no hidden factor of two to remove, and this has been mistaken for one before.
+
+`DRIVE_SCALE` and `TURN_SCALE` are multiplicative trims at the end of each
+conversion. They absorb every error source at once, which is why turns can be
+calibrated without ever measuring a distance.
+
+Autonomous sets `HOLD` on both drive motors; `user_control()` sets `BRAKE`.
+`HOLD` keeps servoing to the target after arrival, pulling back momentum
+overshoot. `BRAKE` stops resisting the moment the command ends, which bakes the
+overshoot in and compounds it across segments. This distinction mattered: it was
+most of the original turn error.
+
+Move timeouts are proportional (`2×` theoretical time `+ 1 s`), not flat. A flat
+5 s was silently truncating `drive(5000)` — which needs 9.4 s at 50% — to
+roughly half distance.
+
+## AI Vision
+
+The sensor holds its own configuration from the AI Vision Utility. **Do not
+declare `Colordesc` / `Codedesc` objects** — passing them to `AiVision()` writes
+new RGB values down and overwrites what was tuned in the utility. Match on the
+code index from `take_snapshot(AiVision.ALL_CODES)` instead.
+
+Indices follow creation order in the utility. `CONE_CODE_ID` is the one
+assumption that cannot be verified from source; `vision_report()` confirms it.
+
+`find_cone()` returns the full `AiVisionObject`, so aiming at the cone later is
+the same call — `centerX` under 160 is left of centre in the 320×240 frame.
+
+## Gotchas
+
+- **Cartridge mismatch.** Declaring `RATIO_18_1` with a blue cartridge fitted
+  overshoots every move by exactly 3×, drives and turns alike. If `drive(1000)`
+  also overshoots badly, suspect the cartridge or wheel size, not track width.
+- **`right_motor` is declared reversed**, so `FORWARD` on it means robot-forward.
+  The sign flip in `turn()` is what makes the sides oppose. Positive angle =
+  right turn.
+- **Wheel scrub under-rotates** in-place turns: the encoders reach target while
+  the robot slides through part of the motion. Not predictable from geometry;
+  absorb it into `TURN_SCALE`.
+- **`TURN_SCALE` is rebound by `turn_tuner()`** via `global`. That works because
+  the tuner and `wheel_degrees_for_turn` are in the same module, and stays true
+  after flattening. Moving either one breaks it.
+- **Type checker and `AiVisionObject | None`.** Narrow with `is not None` before
+  attribute reads even where it is redundant at runtime.
+- **`src/main.py.bak`** predates this work and is kept only in git history.
+
+## Not yet done
+
+Closed-loop heading turns with the `Inertial` class (present in the SDK at
+`vex.py:2191` — `heading()`, `rotation()`, `calibrate()`, `is_calibrating()`).
+That would make `TURN_SCALE`, track width and scrub irrelevant for turns. Not
+built because it is unknown whether the sensor is on the robot.
