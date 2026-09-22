@@ -127,6 +127,16 @@ cannot trigger it.
 and `cone lost` on the way out. Three consecutive agreeing frames are required
 in each direction (150 ms), which rides out a dropped frame without lag.
 
+### Nothing happens at all
+
+1. **Did you run `python3 build.py`?** The brain runs `src/download.py`. Editing
+   a module and hitting Download sends the previous build.
+2. **`print()` does not appear on the brain** — it goes to the VEXcode console
+   over USB. `vision_report()` reports on the brain screen instead, so use that
+   when you are not tethered.
+3. **Blank brain screen** means the program is not running: wrong slot, a failed
+   download, or it stopped on an error.
+
 ### If detection never fires
 
 Run `vision_report()` and watch the console with the cone in front of the sensor.

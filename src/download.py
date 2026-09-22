@@ -220,25 +220,49 @@ def cone_detector():
 
         wait(VISION_LOOP_MS, MSEC)
 
-def vision_report(seconds=20):
-    """Diagnostic: print every object the sensor returns, with its id."""
-    end_ms = brain.timer.time(MSEC) + seconds * 1000
+def vision_report():
+    """On-screen AI Vision diagnostic. Brain screen, so no terminal is needed."""
+    tick = 0
 
-    while brain.timer.time(MSEC) < end_ms:
+    while True:
+        tick = tick + 1
         codes = ai_vision.take_snapshot(AiVision.ALL_CODES, VISION_MAX_OBJECTS)
         colors = ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS)
 
+        brain.screen.clear_screen()
+        brain.screen.set_cursor(1, 1)
+        brain.screen.print("VISION DIAG   tick %d" % tick)
+        brain.screen.set_cursor(2, 1)
+        # installed False means wrong port or unplugged; a frozen timestamp means
+        # the sensor is connected but not sending.
+        brain.screen.print("installed %s   stamp %d" % (ai_vision.installed(), ai_vision.timestamp()))
+        brain.screen.set_cursor(3, 1)
+        brain.screen.print("codes %d   colors %d   want code id %d" % (len(codes), len(colors), CONE_CODE_ID))
+
+        row = 4
         for obj in codes:
-            print("CODE  id=%d  center=(%d,%d)  %dx%d" % (
-                obj.id, obj.centerX, obj.centerY, obj.width, obj.height))
+            if row > 11:
+                break
+            brain.screen.set_cursor(row, 1)
+            brain.screen.print("CODE  id %d  %dx%d at %d,%d" % (
+                obj.id, obj.width, obj.height, obj.centerX, obj.centerY))
+            print("CODE  id=%d  %dx%d at %d,%d" % (
+                obj.id, obj.width, obj.height, obj.centerX, obj.centerY))
+            row = row + 1
         for obj in colors:
-            print("COLOR id=%d  center=(%d,%d)  %dx%d" % (
-                obj.id, obj.centerX, obj.centerY, obj.width, obj.height))
+            if row > 11:
+                break
+            brain.screen.set_cursor(row, 1)
+            brain.screen.print("COLOR id %d  %dx%d at %d,%d" % (
+                obj.id, obj.width, obj.height, obj.centerX, obj.centerY))
+            print("COLOR id=%d  %dx%d at %d,%d" % (
+                obj.id, obj.width, obj.height, obj.centerX, obj.centerY))
+            row = row + 1
 
-        if len(codes) == 0 and len(colors) == 0:
-            print("-- nothing in view")
-
-        wait(500, MSEC)
+        # Double buffered so the clear-and-repaint never shows blank. Safe because
+        # this loop never returns; see AGENTS.md.
+        brain.screen.render()
+        wait(250, MSEC)
 
 
 # ======================== autonomousroutine.py ========================
@@ -598,5 +622,10 @@ def user_control():
 
 def main():
     vision_report()
+
+    # cone_detector()
+    # user_control()
+    # autonomous()
+    # turn_tuner()
 
 main()
