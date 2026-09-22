@@ -309,6 +309,9 @@ def tuner_screen(spins, speed):
     brain.screen.print("up/down .010   R1/R2 .001")
     brain.screen.set_cursor(5, 1)
     brain.screen.print("short: raise    long: lower")
+    # Double buffered from here on, so the clear-and-repaint never reaches the
+    # glass half done. Only turn_tuner() draws after this, and it never returns.
+    brain.screen.render()
 
 def wait_release():
     """Hold here until every tuner button is let go, so one press counts once."""
@@ -329,6 +332,8 @@ def turn_tuner():
     tuner_screen(spins, speed)
 
     while True:
+        changed = True
+
         if controller.buttonA.pressing():
             wait_release()
             turn(spins * 360, speed)
@@ -356,8 +361,11 @@ def turn_tuner():
             wait_release()
             # Scrub depends on speed, so tune at the speed you will drive at.
             speed = speed + 25 if speed < 75 else 25
+        else:
+            changed = False
 
-        tuner_screen(spins, speed)
+        if changed:
+            tuner_screen(spins, speed)
         wait(50, MSEC)
 
 def calibrate_turn(degrees=360, speed=AUTO_TURN_SPEED):
@@ -589,11 +597,6 @@ def user_control():
 # --- Mode ---
 
 def main():
-    cone_detector()
-
-    # vision_report()
-    # user_control()
-    # autonomous()
-    # turn_tuner()
+    vision_report()
 
 main()

@@ -11,11 +11,6 @@ from vision import cone_detector, vision_report, find_cone
 # --- Mode ---
 
 def main():
-    cone_detector()
-
-    # vision_report()
-    # user_control()
-    # autonomous()
-    # turn_tuner()
+    vision_report()
 
 main()

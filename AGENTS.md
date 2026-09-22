@@ -113,6 +113,17 @@ the same call — `centerX` under 160 is left of centre in the 320×240 frame.
   after flattening. Moving either one breaks it.
 - **Type checker and `AiVisionObject | None`.** Narrow with `is not None` before
   attribute reads even where it is redundant at runtime.
+- **The brain screen is static pixels.** `brain.screen.print()` paints once and
+  has no link to the variable it formatted; redraw to update. It also does not
+  blank the rest of the row, so a shorter string leaves the tail of the old one
+  behind — `clear_line()` first. Redraw only when something changed; repainting
+  every loop pass flickers.
+- **`brain.screen.render()` switches the screen to double buffering globally.**
+  After the first call nothing reaches the glass until the next `render()`, so
+  any other code that draws must call it too. Currently only `tuner_screen()`
+  uses it, which is safe because `turn_tuner()` never returns.
+- **`print()` goes to the VEXcode console, not the brain.** Output is lost
+  unless the robot is tethered with the terminal open.
 - **`src/main.py.bak`** predates this work and is kept only in git history.
 
 ## Not yet done
