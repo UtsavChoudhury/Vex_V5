@@ -1,0 +1,177 @@
+# ---------------------------------------------------------------------------- #
+#                                                                              #
+# 	Module:       main.py                                                      #
+# 	Author:       utsavchoudhury                                               #
+# 	Created:      9/9/2026                                                     #
+# 	Description:  Slow Driving with Aggressive High-Speed Turning               #
+#                                                                              #
+# ---------------------------------------------------------------------------- #
+
+from vex import *
+
+# Hardware Initializations
+brain = Brain()
+controller = Controller()
+
+def drive(distance_mm, speed=50):
+    """Drive straight. Positive = forward, negative = backward."""
+    direction = FORWARD if distance_mm >= 0 else REVERSE
+    dt.drive_for(direction, abs(distance_mm), MM, speed, PERCENT)
+
+def turn(degrees, speed=50):
+    """Turn in place. Positive = right, negative = left."""
+    direction = RIGHT if degrees >= 0 else LEFT
+    dt.turn_for(direction, abs(degrees), DEGREES, speed, PERCENT)
+
+def settle(timeout_ms=300):
+    """Brief pause after a move so momentum doesn't bleed into the next segment."""
+    wait(timeout_ms, MSEC)
+
+def run_path(path):
+    """
+    path = list of tuples:
+      ("drive", distance_mm, speed)
+      ("turn", degrees, speed)
+      ("wait", ms)                 # pause without moving — useful at pickup/drop points
+    """
+    for step in path:
+        action = step[0]
+        if action == "drive":
+            drive(step[1], step[2])
+            settle()
+        elif action == "turn":
+            turn(step[1], step[2])
+            settle()
+        elif action == "wait":
+            wait(step[1], MSEC)
+
+# Bump this whenever you edit the file, so the brain screen tells you at a glance
+# whether the program actually on the robot is the one you just downloaded.
+BUILD = "B3"
+
+# Which end of the robot counts as "front". Flipping this reverses each motor AND
+# swaps which port is the left/right side -- both are needed: reversing the motors
+# alone would drive the right way but mirror the steering.
+INVERT_FORWARD = True
+
+# 1. Define individual motors first
+if INVERT_FORWARD:
+    left_motor = Motor(Ports.PORT2, GearSetting.RATIO_18_1, True)
+    right_motor = Motor(Ports.PORT1, GearSetting.RATIO_18_1, False)
+else:
+    left_motor = Motor(Ports.PORT1, GearSetting.RATIO_18_1, True)
+    right_motor = Motor(Ports.PORT2, GearSetting.RATIO_18_1, False)
+
+# 2. CONSTRUCT THE DRIVETRAIN
+dt = DriveTrain(left_motor, right_motor, 300, 320, 320, MM)
+
+# --- Diagnostic ---------------------------------------------------------------
+# Set True to identify the motors instead of driving normally. Put the robot up on
+# blocks so the wheels spin free, run it, and note for each step which wheel turns
+# and which way it would roll the robot. That pins down the port/side mapping and
+# the true sense of each reverse flag, which guessing has not.
+MOTOR_TEST = True
+
+def motor_test():
+    for label, m in (("1: left_motor FWD", left_motor),
+                     ("2: right_motor FWD", right_motor)):
+        brain.screen.clear_screen()
+        brain.screen.set_cursor(1, 1)
+        brain.screen.print(label)
+        controller.screen.clear_screen()
+        controller.screen.set_cursor(1, 1)
+        controller.screen.print(label)
+        m.spin(FORWARD, 30, PERCENT)
+        wait(2000, MSEC)
+        m.stop()
+        wait(1500, MSEC)
+# ------------------------------------------------------------------------------
+
+def autonomous():
+    for _ in range(3):
+        settle(3000)
+        drive(200)
+        turn(10)
+
+    
+
+def user_control():
+    # Force full system override to block background radio hijacking
+    global remote_control_code_enabled
+    remote_control_code_enabled = False
+
+    brain.screen.clear_screen()
+    brain.screen.print("Drivetrain: Slow Drive / Fast Turn")
+    brain.screen.next_row()
+    brain.screen.print("build " + BUILD + "  invert=" + str(INVERT_FORWARD))
+
+    # Same tag on the controller -- that's what's in your hands while driving, so
+    # it's the reliable way to tell whether the robot is running this build.
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print("build " + BUILD + " inv=" + str(INVERT_FORWARD))
+
+
+    # Configure stopping behavior on the drivetrain object
+    dt.set_stopping(BRAKE)
+
+    while True:
+        forward_raw = controller.axis3.position()
+        turn_raw = controller.axis4.position()
+
+        if abs(forward_raw) < 2:
+            forward_raw = 0
+        if abs(turn_raw) < 2:
+            turn_raw = 0
+
+        if controller.buttonL1.pressing() or controller.buttonR1.pressing():
+            forward_multiplier = 0.50
+        elif controller.buttonL2.pressing() or controller.buttonR2.pressing():
+            forward_multiplier = 0.10
+        else:
+            forward_multiplier = 0.20
+
+        forward_smooth = ((forward_raw * abs(forward_raw)) / 100.0) * forward_multiplier
+        turn_smooth = ((turn_raw * abs(turn_raw)) / 200.0)
+
+        fast_turn = controller.buttonL1.pressing() or controller.buttonR1.pressing()
+
+        if fast_turn:
+            # Fast turning: both wheels move, opposite directions (pivot-style), full power
+            left_power = forward_smooth + turn_smooth
+            right_power = forward_smooth - turn_smooth
+        else:
+            # Slow turning (default): only the outer wheel gets the turn contribution,
+            # and at reduced power
+            slow_turn_multiplier = 0.02  # tune this to taste
+            turn_slow = turn_smooth * slow_turn_multiplier
+
+            if turn_slow > 0:
+                left_power = forward_smooth + turn_slow
+                right_power = forward_smooth
+            elif turn_slow < 0:
+                left_power = forward_smooth
+                right_power = forward_smooth - turn_slow
+            else:
+                left_power = forward_smooth
+                right_power = forward_smooth
+
+        left_power = max(-100, min(100, left_power))
+        right_power = max(-100, min(100, right_power))
+
+        left_motor.spin(FORWARD, left_power, PERCENT)
+        right_motor.spin(FORWARD, right_power, PERCENT)
+
+        wait(20, MSEC)
+
+
+
+# Register competition callbacks
+comp = Competition(user_control, autonomous)
+
+if MOTOR_TEST:
+    motor_test()
+else:
+    user_control()
+
+
