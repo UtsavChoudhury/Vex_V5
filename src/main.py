@@ -244,6 +244,155 @@ ARM_MIN_DEG = 0.0
 ARM_MAX_DEG = 900.0
 
 # ---------------------------------------------------------------------------- #
+#  AI VISION  --  cone detection
+#
+#  The sensor already holds the configuration you built in the AI Vision
+#  Utility:
+#
+#      colour        1   yellowcone
+#      colour        2   bluecone
+#      colour code   1   cone   ( yellowcone + bluecone )
+#
+#  So this file deliberately declares NO Colordesc or Codedesc objects. Passing
+#  them to AiVision() writes new RGB values down to the sensor and overwrites
+#  what you tuned in the utility. Instead it asks the sensor for every colour
+#  code it can see and matches on the code's index.
+#
+#  Those indices come from the order things were created in the utility, which
+#  makes "cone" -- the first and only colour code -- id 1. If detection never
+#  fires, run vision_report(): it prints the id of everything the sensor is
+#  actually returning, and that is how you confirm the number below.
+#
+#  A colour code only matches when BOTH of its colours are found adjacent to
+#  each other, which is exactly the yellow-over-blue cone and is why a code is
+#  the right tool here -- a plain yellow object cannot trigger it.
+# ---------------------------------------------------------------------------- #
+
+AI_VISION_PORT = Ports.PORT4     # <-- set to the port the sensor is plugged into
+
+CONE_CODE_ID = 1                 # colour code "cone"
+YELLOW_CONE_ID = 1               # colour "yellowcone"
+BLUE_CONE_ID = 2                 # colour "bluecone"
+
+ai_vision = AiVision(AI_VISION_PORT)
+
+# The camera frame is 320 x 240. A code match a handful of pixels wide is noise
+# rather than a cone, so anything smaller than this is thrown away. Raise both
+# numbers if the sensor reports the cone from further away than you want.
+VISION_MIN_WIDTH = 20
+VISION_MIN_HEIGHT = 20
+
+# Frames the cone has to be steadily present, or steadily gone, before the
+# message changes. At the 50 ms loop below that is 150 ms of agreement: long
+# enough to ride out a dropped frame, short enough to still feel instant.
+VISION_CONFIRM_FRAMES = 3
+
+VISION_LOOP_MS = 50
+VISION_MAX_OBJECTS = 8
+
+# ---------------------------------------------------------------------------- #
+#  AI VISION HELPERS
+# ---------------------------------------------------------------------------- #
+
+def find_cone():
+    """Largest 'cone' colour code currently in view, or None.
+
+    The returned AiVisionObject carries centerX / centerY (pixels from the top
+    left), width, height, angle and score, so the same call works for aiming at
+    the cone later -- centerX below 160 means it sits left of centre.
+    """
+    largest = None
+    largest_area = 0
+
+    for obj in ai_vision.take_snapshot(AiVision.ALL_CODES, VISION_MAX_OBJECTS):
+        if obj.id != CONE_CODE_ID:
+            continue
+        if obj.width < VISION_MIN_WIDTH or obj.height < VISION_MIN_HEIGHT:
+            continue
+        area = obj.width * obj.height
+        if area > largest_area:
+            largest = obj
+            largest_area = area
+
+    return largest
+
+def cone_detector():
+    """Watch continuously and announce the cone each time it comes into view.
+
+    Prints once on arrival rather than once per frame -- a 20 Hz loop shouting
+    the same line 20 times a second tells you nothing about when it actually
+    appeared.
+    """
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("AI VISION  --  watching for cone")
+
+    visible = False
+    hits = 0
+    misses = 0
+
+    while True:
+        cone = find_cone()
+
+        if cone is not None:
+            hits = hits + 1
+            misses = 0
+        else:
+            misses = misses + 1
+            hits = 0
+
+        if not visible and hits >= VISION_CONFIRM_FRAMES:
+            visible = True
+            print("cone identified")
+            brain.screen.clear_line(3)
+            brain.screen.set_cursor(3, 1)
+            brain.screen.print("cone identified")
+            brain.screen.clear_line(4)
+            brain.screen.set_cursor(4, 1)
+            brain.screen.print("x %d  y %d   %d x %d" % (
+                cone.centerX, cone.centerY, cone.width, cone.height))
+            controller.rumble(".")
+
+        elif visible and misses >= VISION_CONFIRM_FRAMES:
+            visible = False
+            print("cone lost")
+            brain.screen.clear_line(3)
+            brain.screen.set_cursor(3, 1)
+            brain.screen.print("no cone")
+            brain.screen.clear_line(4)
+
+        wait(VISION_LOOP_MS, MSEC)
+
+def vision_report(seconds=20):
+    """Diagnostic: print every object the sensor returns, with its id.
+
+    Run this first, hold the cone in front of the sensor and watch the console.
+    A CODE line is the colour code -- the id on it is the number that belongs in
+    CONE_CODE_ID. If you only ever see COLOR lines and never a CODE line, the
+    sensor is seeing the two colours but not treating them as one object: the
+    halves are too far apart, or one of the two colour ranges is too tight to
+    match at the distance you are testing from.
+    """
+    end_ms = brain.timer.time(MSEC) + seconds * 1000
+
+    while brain.timer.time(MSEC) < end_ms:
+        codes = ai_vision.take_snapshot(AiVision.ALL_CODES, VISION_MAX_OBJECTS)
+        colors = ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS)
+
+        for obj in codes:
+            print("CODE  id=%d  center=(%d,%d)  %dx%d" % (
+                obj.id, obj.centerX, obj.centerY, obj.width, obj.height))
+        for obj in colors:
+            print("COLOR id=%d  center=(%d,%d)  %dx%d" % (
+                obj.id, obj.centerX, obj.centerY, obj.width, obj.height))
+
+        if len(codes) == 0 and len(colors) == 0:
+            print("-- nothing in view")
+
+        wait(500, MSEC)
+
+
+# ---------------------------------------------------------------------------- #
 #  AUTONOMOUS HELPERS
 # ---------------------------------------------------------------------------- #
 
@@ -699,5 +848,10 @@ def user_control():
 
 # ---------------------------------------------------------------------------- #
 
-#autonomous()
-user_control()
+# Cone detection. If it never fires, run vision_report() instead: it prints what
+# the sensor is really returning so you can confirm CONE_CODE_ID.
+# vision_report()
+cone_detector()
+
+# autonomous()
+# user_control()
