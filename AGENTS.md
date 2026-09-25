@@ -86,16 +86,29 @@ roughly half distance.
 
 ## AI Vision
 
-The sensor holds its own configuration from the AI Vision Utility. **Do not
-declare `Colordesc` / `Codedesc` objects** — passing them to `AiVision()` writes
-new RGB values down and overwrites what was tuned in the utility. Match on the
-code index from `take_snapshot(AiVision.ALL_CODES)` instead.
+The colour and code descriptions are **declared in `config.py` and passed to
+`AiVision()`**, which pushes them to the sensor at construction.
 
-Indices follow creation order in the utility. `CONE_CODE_ID` is the one
-assumption that cannot be verified from source; `vision_report()` confirms it.
+The obvious alternative — declare nothing and rely on what the AI Vision Utility
+stored on the sensor — does not work here, and the failure is silent: the sensor
+reports `installed()` True with a moving `timestamp()` while every snapshot comes
+back empty. The utility screenshot showed "No AI Vision Sensor Connected", so the
+colours were configured against a disconnected utility and never reached any
+sensor. Declaring them in code sidesteps the question entirely.
+
+`ai_vision.color_detection(True)` is then required to turn colour and code
+processing on.
+
+Indices follow the utility's list order: `bluecone` 1, `yellowcone` 2, code
+`cone` 1. The RGB values were sampled from the utility's colour swatches, and
+the hue (40) and saturation (1.00) ranges copied from its sliders. Those are
+wide tolerances — if the code matches things that are not the cone, narrow them.
+
+A colour code only matches when both member colours are found adjacent to each
+other, which is exactly the half-yellow half-blue cone.
 
 `find_cone()` returns the full `AiVisionObject`, so aiming at the cone later is
-the same call — `centerX` under 160 is left of centre in the 320×240 frame.
+the same call — `centerX` under 160 is left of centre in the 320x240 frame.
 
 ## Gotchas
 

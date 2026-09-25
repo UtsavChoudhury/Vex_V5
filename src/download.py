@@ -129,11 +129,17 @@ ARM_MAX_DEG = 900.0
 
 AI_VISION_PORT = Ports.PORT4     # <-- set to the port the sensor is plugged into
 
+BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
+YELLOW_CONE_ID = 2               # colour "yellowcone"
 CONE_CODE_ID = 1                 # colour code "cone"
-YELLOW_CONE_ID = 1               # colour "yellowcone"
-BLUE_CONE_ID = 2                 # colour "bluecone"
 
-ai_vision = AiVision(AI_VISION_PORT)
+# RGB sampled from the utility swatches; hue and saturation ranges as set there.
+# Declared here rather than relied on from the sensor -- see AGENTS.md.
+BLUE_CONE = Colordesc(BLUE_CONE_ID, 74, 126, 169, 40.0, 1.00)
+YELLOW_CONE = Colordesc(YELLOW_CONE_ID, 194, 194, 123, 40.0, 1.00)
+CONE = Codedesc(CONE_CODE_ID, BLUE_CONE, YELLOW_CONE)
+
+ai_vision = AiVision(AI_VISION_PORT, BLUE_CONE, YELLOW_CONE, CONE)
 # Colour and code processing is off until asked for; without this every
 # snapshot comes back empty even though the sensor is streaming.
 ai_vision.color_detection(True)

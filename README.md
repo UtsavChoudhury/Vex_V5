@@ -111,17 +111,24 @@ unnecessary — turns stop caring about track width and scrub entirely.
 
 ## AI Vision
 
-Configured in the AI Vision Utility, not in code:
+The cone is a colour code: two colours that only match when found adjacent to
+each other, which is exactly the half-yellow half-blue cone. A plain yellow
+object cannot trigger it.
 
 | Kind | Index | Name |
 |------|-------|------|
-| colour | 1 | `yellowcone` |
-| colour | 2 | `bluecone` |
-| colour code | 1 | `cone` (yellowcone + bluecone) |
+| colour | 1 | `bluecone` |
+| colour | 2 | `yellowcone` |
+| colour code | 1 | `cone` |
 
-A colour code only matches when both member colours are found adjacent to each
-other, which is exactly the half-yellow half-blue cone — a plain yellow object
-cannot trigger it.
+These are **declared in `src/config.py`**, not read from the sensor. Relying on
+what the AI Vision Utility stored does not work — see AGENTS.md.
+
+If the code matches things that are not the cone, narrow the hue range (40) and
+saturation range (1.00) in the `Colordesc` lines. To re-sample the colours
+properly: connect the brain over USB, open the AI Vision Utility, press
+**Connect**, point the sensor at the real cone and use **Set Color** on each
+half, then copy the values back into `config.py`.
 
 `cone_detector()` prints `cone identified` once on arrival, not once per frame,
 and `cone lost` on the way out. Three consecutive agreeing frames are required
