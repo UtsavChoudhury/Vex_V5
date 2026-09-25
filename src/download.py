@@ -273,6 +273,35 @@ def vision_report():
         brain.screen.render()
         wait(250, MSEC)
 
+def scan_ports():
+    """Show which smart port the AI Vision sensor answers on."""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("scanning ports...")
+
+    found = []
+    for index in range(0, 21):
+        try:
+            probe = AiVision(index)
+            first = probe.timestamp()
+            wait(100, MSEC)
+            # A real sensor keeps stamping packets; a dead port does not.
+            if probe.installed() and probe.timestamp() != first:
+                found.append(index + 1)
+        except:
+            pass
+
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    if len(found) == 0:
+        brain.screen.print("no AI Vision sensor on any port")
+        print("no AI Vision sensor on any port")
+    else:
+        brain.screen.print("AI Vision on port(s): %s" % found)
+        print("AI Vision on port(s): %s" % found)
+    brain.screen.set_cursor(2, 1)
+    brain.screen.print("config has PORT%d" % (AI_VISION_PORT + 1))
+
 
 # ======================== autonomousroutine.py ========================
 
@@ -630,7 +659,9 @@ def user_control():
 # --- Mode ---
 
 def main():
-    vision_report()
+    scan_ports()
+
+    # vision_report()
 
     # cone_detector()
     # user_control()

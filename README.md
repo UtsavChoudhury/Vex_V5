@@ -51,7 +51,8 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | Call | Purpose |
 |------|---------|
 | `cone_detector()` | watch through the AI Vision sensor, announce the cone |
-| `vision_report()` | diagnostic — print every object the sensor returns |
+| `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
+| `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
 | `autonomous()` | the autonomous routine |
 | `turn_tuner()` | on-robot turn calibration |
