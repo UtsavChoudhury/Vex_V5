@@ -166,37 +166,51 @@ def run_path(path):
 
 # --- Cone alignment ---
 
-def measure_cone_x():
-    """Median cone centerX over several stationary frames, or None if mostly unseen."""
+def measure_cone():
+    """Median centerX, x spread and median width over stationary frames, or None."""
     xs = []
+    widths = []
     for i in range(ALIGN_SAMPLES):
         target = find_cone()
         if target is not None:
             xs.append(target.centerX)
+            widths.append(target.width)
         wait(VISION_LOOP_MS, MSEC)
     if len(xs) <= ALIGN_SAMPLES // 2:
         return None
     xs.sort()
-    return xs[len(xs) // 2]
+    widths.sort()
+    return xs[len(xs) // 2], xs[-1] - xs[0], widths[len(widths) // 2]
 
 def align_to_cone():
-    """Stop, measure, turn by encoder; repeat until centred. True if aligned."""
+    """Stop, measure, turn by encoder; repeat until centred. Logs each step from row 5."""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("ALIGN  centre %d  tol %d  deg/px %.3f" % (
+        VISION_CENTER_X, ALIGN_TOLERANCE_PX, VISION_DEG_PER_PX))
     for step in range(ALIGN_MAX_STEPS):
         settle(ALIGN_SETTLE_MS)
-        x = measure_cone_x()
-        brain.screen.clear_line(5)
-        brain.screen.set_cursor(5, 1)
-        if x is None:
-            brain.screen.print("align: cone not seen")
+        reading = measure_cone()
+        brain.screen.set_cursor(step + 3, 1)
+        if reading is None:
+            brain.screen.print("%d  cone not seen" % (step + 1))
             return False
+        x, spread, width = reading
         error = x - VISION_CENTER_X
-        brain.screen.print("align step %d  x %d  err %d" % (step + 1, x, error))
         if abs(error) <= ALIGN_TOLERANCE_PX:
+            brain.screen.print("%d  x %d  err %d  spr %d  w %d  DONE" % (
+                step + 1, x, error, spread, width))
             return True
         angle = error * VISION_DEG_PER_PX
         if abs(angle) < ALIGN_MIN_TURN_DEG:
             angle = ALIGN_MIN_TURN_DEG if angle > 0 else -ALIGN_MIN_TURN_DEG
+        start_left = left_motor.position(DEGREES)
         turn(angle, ALIGN_TURN_SPEED)
+        moved = left_motor.position(DEGREES) - start_left
+        brain.screen.print("%d  x %d  err %d  spr %d  w %d  t %.1f  mv %.1f" % (
+            step + 1, x, error, spread, width, angle, moved))
+    brain.screen.set_cursor(ALIGN_MAX_STEPS + 3, 1)
+    brain.screen.print("gave up")
     return False
 
 
