@@ -135,9 +135,10 @@ CONE_CODE_ID = 1                 # colour code "cone"
 SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
 SEARCH_INNER_POWER = 5
 SEARCH_OUTER_POWER = 10
-APPROACH_FORWARD_POWER = 15
+APPROACH_FORWARD_POWER = 25
 APPROACH_TURN_POWER = 12
 APPROACH_TARGET_WIDTH = 100
+APPROACH_MIN_TICKS = 25
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
@@ -237,6 +238,7 @@ def search_color_circle():
     brain.screen.set_cursor(1, 1)
     brain.screen.print("centering on yellow cone")
 
+    approach_ticks = 0
     while True:
         target = find_color(YELLOW_CONE_ID)
         if target is None:
@@ -256,7 +258,7 @@ def search_color_circle():
                 wait(VISION_LOOP_MS, MSEC)
             continue
 
-        if target.width >= APPROACH_TARGET_WIDTH:
+        if approach_ticks >= APPROACH_MIN_TICKS and target.width >= APPROACH_TARGET_WIDTH:
             left_motor.stop()
             right_motor.stop()
             brain.screen.set_cursor(3, 1)
@@ -272,6 +274,7 @@ def search_color_circle():
                          min(APPROACH_TURN_POWER, error / 10.0))
         left_motor.spin(FORWARD, APPROACH_FORWARD_POWER + correction, PERCENT)
         right_motor.spin(FORWARD, APPROACH_FORWARD_POWER - correction, PERCENT)
+        approach_ticks = approach_ticks + 1
         wait(VISION_LOOP_MS, MSEC)
 
 def cone_detector():
