@@ -131,9 +131,10 @@ SEARCH_OUTER_POWER = 10
 APPROACH_FORWARD_POWER = 25
 APPROACH_TURN_POWER = 18
 APPROACH_CENTER_TOLERANCE = 5
+APPROACH_CENTER_CONFIRM_FRAMES = 3
 APPROACH_TARGET_WIDTH = 250
 APPROACH_MIN_TICKS = 25
-APPROACH_PULSE_TICKS = 5
+APPROACH_PULSE_TICKS = 2
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
