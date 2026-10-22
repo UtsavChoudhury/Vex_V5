@@ -41,16 +41,16 @@ def find_color(color_id):
     return largest
 
 def search_color_circle():
-    """Turn slowly in a circle until the blue/yellow cone is visible."""
+    """Turn slowly in a circle until the yellow cone color is visible."""
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
-    brain.screen.print("searching for blue/yellow cone")
+    brain.screen.print("searching for yellow cone")
 
     hits = 0
     while True:
-        target = find_cone()
+        target = find_color(YELLOW_CONE_ID)
         if target is not None:
             hits = hits + 1
         else:
@@ -62,7 +62,7 @@ def search_color_circle():
             brain.screen.set_cursor(3, 1)
             brain.screen.print("TARGET FOUND!")
             brain.screen.set_cursor(4, 1)
-            brain.screen.print("blue + yellow  x %d y %d" % (
+            brain.screen.print("yellow  x %d y %d" % (
                 target.centerX, target.centerY))
             controller.rumble("...")
             return
