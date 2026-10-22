@@ -16,9 +16,9 @@ def main():
     # vision_report()
 
     # cone_detector()
-    search_color_circle()
+    # search_color_circle()
     # user_control()
-    # autonomous()
+    autonomous()
     # turn_tuner()
 
 main()

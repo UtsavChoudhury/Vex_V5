@@ -2,6 +2,7 @@
 
 from vex import *
 from config import *
+from vision import search_color_circle
 
 
 # --- Movement ---
@@ -169,6 +170,7 @@ def autonomous():
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     manipulator_init()
+    search_color_circle()
     for _ in range(3):
         settle(3000)
         drive(2000)

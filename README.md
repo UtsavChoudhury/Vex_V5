@@ -55,7 +55,7 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | the autonomous routine |
+| `autonomous()` | search for the configured color, then run the autonomous routine |
 | `turn_tuner()` | on-robot turn calibration |
 
 Field control switches between `autonomous()` and `user_control()` at a real

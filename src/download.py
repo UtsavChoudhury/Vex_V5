@@ -522,6 +522,7 @@ def autonomous():
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     manipulator_init()
+    search_color_circle()
     for _ in range(3):
         settle(3000)
         drive(2000)
@@ -712,9 +713,9 @@ def main():
     # vision_report()
 
     # cone_detector()
-    search_color_circle()
+    # search_color_circle()
     # user_control()
-    # autonomous()
+    autonomous()
     # turn_tuner()
 
 main()
