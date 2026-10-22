@@ -128,13 +128,17 @@ CONE_CODE_ID = 1                 # colour code "cone"
 SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
 SEARCH_INNER_POWER = 5
 SEARCH_OUTER_POWER = 10
-APPROACH_FORWARD_POWER = 25
-APPROACH_TURN_POWER = 18
-APPROACH_CENTER_TOLERANCE = 5
-APPROACH_CENTER_CONFIRM_FRAMES = 3
+VISION_CENTER_X = 160            # centerX when the cone is dead ahead; shift if camera is off-centre
+APPROACH_FORWARD_POWER = 25      # forward power when the cone is far
+APPROACH_MIN_FORWARD = 8         # forward power as the cone fills the frame
+APPROACH_STEER_KP = 0.12         # turn power per pixel of error
+APPROACH_MIN_TURN = 4            # smallest turn power that actually moves the robot
+APPROACH_MAX_TURN = 15
+APPROACH_DRIVE_ERROR = 40        # beyond this many px, turn in place instead of driving
+APPROACH_CENTER_TOLERANCE = 3
+APPROACH_CENTER_CONFIRM_FRAMES = 4
 APPROACH_TARGET_WIDTH = 250
-APPROACH_MIN_TICKS = 25
-APPROACH_PULSE_TICKS = 2
+FINAL_ALIGN_TIMEOUT_MS = 3000
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
