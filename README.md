@@ -136,6 +136,23 @@ half, then copy the values back into `config.py`.
 and `cone lost` on the way out. Three consecutive agreeing frames are required
 in each direction (150 ms), which rides out a dropped frame without lag.
 
+### Aligning to the cone
+
+Autonomous approaches the cone with proportional steering, stops, then runs
+`align_to_cone()`. That step repeats: wait for the robot to settle, take the
+median `centerX` over 7 frames, convert the pixel error to degrees
+(`VISION_DEG_PER_PX`), and turn that far by encoder. It finishes when the error
+is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step. The
+controller gives three short rumbles when aligned and one long rumble when it
+gave up.
+
+If it reports `err 0` but the robot is visibly angled, the camera is not on the
+robot's centreline. Aim the robot at the cone by hand, read `x` from
+`vision_report()`, and put that number in `VISION_CENTER_X`.
+
+If each step overshoots (the error flips sign), lower `VISION_DEG_PER_PX`. If
+it creeps towards centre over many steps, raise it.
+
 ### Nothing happens at all
 
 1. **Did you run `python3 build.py`?** The brain runs `src/download.py`. Editing

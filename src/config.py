@@ -136,9 +136,14 @@ APPROACH_MIN_TURN = 4            # smallest turn power that actually moves the r
 APPROACH_MAX_TURN = 15
 APPROACH_DRIVE_ERROR = 40        # beyond this many px, turn in place instead of driving
 APPROACH_CENTER_TOLERANCE = 3
-APPROACH_CENTER_CONFIRM_FRAMES = 4
 APPROACH_TARGET_WIDTH = 250
-FINAL_ALIGN_TIMEOUT_MS = 3000
+VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
+ALIGN_TOLERANCE_PX = 2           # final aim accuracy, about half a degree
+ALIGN_SAMPLES = 7                # frames per median measurement
+ALIGN_SETTLE_MS = 250            # let the robot stop rocking before measuring
+ALIGN_MIN_TURN_DEG = 0.5
+ALIGN_MAX_STEPS = 8
+ALIGN_TURN_SPEED = 10
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.

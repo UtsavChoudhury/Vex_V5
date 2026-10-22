@@ -143,9 +143,14 @@ APPROACH_MIN_TURN = 4            # smallest turn power that actually moves the r
 APPROACH_MAX_TURN = 15
 APPROACH_DRIVE_ERROR = 40        # beyond this many px, turn in place instead of driving
 APPROACH_CENTER_TOLERANCE = 3
-APPROACH_CENTER_CONFIRM_FRAMES = 4
 APPROACH_TARGET_WIDTH = 250
-FINAL_ALIGN_TIMEOUT_MS = 3000
+VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
+ALIGN_TOLERANCE_PX = 2           # final aim accuracy, about half a degree
+ALIGN_SAMPLES = 7                # frames per median measurement
+ALIGN_SETTLE_MS = 250            # let the robot stop rocking before measuring
+ALIGN_MIN_TURN_DEG = 0.5
+ALIGN_MAX_STEPS = 8
+ALIGN_TURN_SPEED = 10
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
@@ -271,22 +276,6 @@ def search_color_circle():
 
     left_motor.stop()
     right_motor.stop()
-    brain.screen.set_cursor(3, 1)
-    brain.screen.print("final align")
-    final_align()
-
-    left_motor.set_stopping(HOLD)
-    right_motor.set_stopping(HOLD)
-    left_motor.stop()
-    right_motor.stop()
-    target = find_cone()
-    brain.screen.set_cursor(3, 1)
-    brain.screen.print("TARGET FOUND!")
-    if target is not None:
-        brain.screen.set_cursor(4, 1)
-        brain.screen.print("cone  x %d y %d  err %d" % (
-            target.centerX, target.centerY, target.centerX - VISION_CENTER_X))
-    controller.rumble("...")
 
 def steer_power(error):
     """Proportional turn power for a centerX error, with a floor to beat friction."""
@@ -308,33 +297,6 @@ def reacquire_cone():
         left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
         right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
         wait(VISION_LOOP_MS, MSEC)
-
-def final_align():
-    """Turn in place until the cone holds centre for several frames, or time runs out."""
-    centered = 0
-    start = brain.timer.time(MSEC)
-    while centered < APPROACH_CENTER_CONFIRM_FRAMES:
-        if brain.timer.time(MSEC) - start > FINAL_ALIGN_TIMEOUT_MS:
-            break
-        target = find_cone()
-        if target is None:
-            left_motor.stop()
-            right_motor.stop()
-            centered = 0
-            wait(VISION_LOOP_MS, MSEC)
-            continue
-        steer = steer_power(target.centerX - VISION_CENTER_X)
-        if steer == 0:
-            centered = centered + 1
-            left_motor.stop()
-            right_motor.stop()
-        else:
-            centered = 0
-            left_motor.spin(FORWARD, steer, PERCENT)
-            right_motor.spin(FORWARD, -steer, PERCENT)
-        wait(VISION_LOOP_MS, MSEC)
-    left_motor.stop()
-    right_motor.stop()
 
 def cone_detector():
     """Watch continuously and announce the cone each time it comes into view."""
@@ -617,6 +579,42 @@ def run_path(path):
             wait(step[1], MSEC)
 
 
+# --- Cone alignment ---
+
+def measure_cone_x():
+    """Median cone centerX over several stationary frames, or None if mostly unseen."""
+    xs = []
+    for i in range(ALIGN_SAMPLES):
+        target = find_cone()
+        if target is not None:
+            xs.append(target.centerX)
+        wait(VISION_LOOP_MS, MSEC)
+    if len(xs) <= ALIGN_SAMPLES // 2:
+        return None
+    xs.sort()
+    return xs[len(xs) // 2]
+
+def align_to_cone():
+    """Stop, measure, turn by encoder; repeat until centred. True if aligned."""
+    for step in range(ALIGN_MAX_STEPS):
+        settle(ALIGN_SETTLE_MS)
+        x = measure_cone_x()
+        brain.screen.clear_line(5)
+        brain.screen.set_cursor(5, 1)
+        if x is None:
+            brain.screen.print("align: cone not seen")
+            return False
+        error = x - VISION_CENTER_X
+        brain.screen.print("align step %d  x %d  err %d" % (step + 1, x, error))
+        if abs(error) <= ALIGN_TOLERANCE_PX:
+            return True
+        angle = error * VISION_DEG_PER_PX
+        if abs(angle) < ALIGN_MIN_TURN_DEG:
+            angle = ALIGN_MIN_TURN_DEG if angle > 0 else -ALIGN_MIN_TURN_DEG
+        turn(angle, ALIGN_TURN_SPEED)
+    return False
+
+
 # --- Routine ---
 
 def autonomous():
@@ -624,6 +622,10 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     search_color_circle()
+    if align_to_cone():
+        controller.rumble("...")
+    else:
+        controller.rumble("-")
 
 
 # ======================== drivercontrol.py ========================

@@ -2,7 +2,7 @@
 
 from vex import *
 from config import *
-from vision import search_color_circle
+from vision import search_color_circle, find_cone
 
 
 # --- Movement ---
@@ -164,6 +164,42 @@ def run_path(path):
             wait(step[1], MSEC)
 
 
+# --- Cone alignment ---
+
+def measure_cone_x():
+    """Median cone centerX over several stationary frames, or None if mostly unseen."""
+    xs = []
+    for i in range(ALIGN_SAMPLES):
+        target = find_cone()
+        if target is not None:
+            xs.append(target.centerX)
+        wait(VISION_LOOP_MS, MSEC)
+    if len(xs) <= ALIGN_SAMPLES // 2:
+        return None
+    xs.sort()
+    return xs[len(xs) // 2]
+
+def align_to_cone():
+    """Stop, measure, turn by encoder; repeat until centred. True if aligned."""
+    for step in range(ALIGN_MAX_STEPS):
+        settle(ALIGN_SETTLE_MS)
+        x = measure_cone_x()
+        brain.screen.clear_line(5)
+        brain.screen.set_cursor(5, 1)
+        if x is None:
+            brain.screen.print("align: cone not seen")
+            return False
+        error = x - VISION_CENTER_X
+        brain.screen.print("align step %d  x %d  err %d" % (step + 1, x, error))
+        if abs(error) <= ALIGN_TOLERANCE_PX:
+            return True
+        angle = error * VISION_DEG_PER_PX
+        if abs(angle) < ALIGN_MIN_TURN_DEG:
+            angle = ALIGN_MIN_TURN_DEG if angle > 0 else -ALIGN_MIN_TURN_DEG
+        turn(angle, ALIGN_TURN_SPEED)
+    return False
+
+
 # --- Routine ---
 
 def autonomous():
@@ -171,3 +207,7 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     search_color_circle()
+    if align_to_cone():
+        controller.rumble("...")
+    else:
+        controller.rumble("-")

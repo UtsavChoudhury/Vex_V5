@@ -93,22 +93,6 @@ def search_color_circle():
 
     left_motor.stop()
     right_motor.stop()
-    brain.screen.set_cursor(3, 1)
-    brain.screen.print("final align")
-    final_align()
-
-    left_motor.set_stopping(HOLD)
-    right_motor.set_stopping(HOLD)
-    left_motor.stop()
-    right_motor.stop()
-    target = find_cone()
-    brain.screen.set_cursor(3, 1)
-    brain.screen.print("TARGET FOUND!")
-    if target is not None:
-        brain.screen.set_cursor(4, 1)
-        brain.screen.print("cone  x %d y %d  err %d" % (
-            target.centerX, target.centerY, target.centerX - VISION_CENTER_X))
-    controller.rumble("...")
 
 def steer_power(error):
     """Proportional turn power for a centerX error, with a floor to beat friction."""
@@ -130,33 +114,6 @@ def reacquire_cone():
         left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
         right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
         wait(VISION_LOOP_MS, MSEC)
-
-def final_align():
-    """Turn in place until the cone holds centre for several frames, or time runs out."""
-    centered = 0
-    start = brain.timer.time(MSEC)
-    while centered < APPROACH_CENTER_CONFIRM_FRAMES:
-        if brain.timer.time(MSEC) - start > FINAL_ALIGN_TIMEOUT_MS:
-            break
-        target = find_cone()
-        if target is None:
-            left_motor.stop()
-            right_motor.stop()
-            centered = 0
-            wait(VISION_LOOP_MS, MSEC)
-            continue
-        steer = steer_power(target.centerX - VISION_CENTER_X)
-        if steer == 0:
-            centered = centered + 1
-            left_motor.stop()
-            right_motor.stop()
-        else:
-            centered = 0
-            left_motor.spin(FORWARD, steer, PERCENT)
-            right_motor.spin(FORWARD, -steer, PERCENT)
-        wait(VISION_LOOP_MS, MSEC)
-    left_motor.stop()
-    right_motor.stop()
 
 def cone_detector():
     """Watch continuously and announce the cone each time it comes into view."""
