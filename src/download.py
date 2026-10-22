@@ -227,10 +227,11 @@ def search_color_circle():
             left_motor.stop()
             right_motor.stop()
             brain.screen.set_cursor(3, 1)
-            brain.screen.print("found color %d" % SEARCH_COLOR_ID)
+            brain.screen.print("TARGET FOUND!")
             brain.screen.set_cursor(4, 1)
-            brain.screen.print("x %d  y %d" % (target.centerX, target.centerY))
-            controller.rumble(".")
+            brain.screen.print("color %d  x %d y %d" % (
+                SEARCH_COLOR_ID, target.centerX, target.centerY))
+            controller.rumble("...")
             return
 
         left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
