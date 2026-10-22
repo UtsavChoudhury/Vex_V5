@@ -140,6 +140,7 @@ APPROACH_TURN_POWER = 18
 APPROACH_CENTER_TOLERANCE = 5
 APPROACH_TARGET_WIDTH = 250
 APPROACH_MIN_TICKS = 25
+APPROACH_PULSE_TICKS = 5
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
@@ -240,6 +241,7 @@ def search_color_circle():
     brain.screen.print("centering on cone")
 
     approach_ticks = 0
+    forward_ticks = 0
     while True:
         target = find_cone()
         if target is None:
@@ -272,12 +274,18 @@ def search_color_circle():
 
         error = target.centerX - 160
         if abs(error) > APPROACH_CENTER_TOLERANCE:
+            forward_ticks = 0
             turn_direction = 1 if error > 0 else -1
             left_motor.spin(FORWARD, turn_direction * APPROACH_TURN_POWER, PERCENT)
             right_motor.spin(FORWARD, -turn_direction * APPROACH_TURN_POWER, PERCENT)
-        else:
+        elif forward_ticks < APPROACH_PULSE_TICKS:
             left_motor.spin(FORWARD, APPROACH_FORWARD_POWER, PERCENT)
             right_motor.spin(FORWARD, APPROACH_FORWARD_POWER, PERCENT)
+            forward_ticks = forward_ticks + 1
+        else:
+            left_motor.stop()
+            right_motor.stop()
+            forward_ticks = 0
         approach_ticks = approach_ticks + 1
         wait(VISION_LOOP_MS, MSEC)
 
