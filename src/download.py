@@ -133,6 +133,8 @@ BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
 YELLOW_CONE_ID = 2               # colour "yellowcone"
 CONE_CODE_ID = 1                 # colour code "cone"
 SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
+SEARCH_INNER_POWER = 30
+SEARCH_OUTER_POWER = 60
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
@@ -231,8 +233,8 @@ def search_color_circle():
             controller.rumble(".")
             return
 
-        left_motor.spin(FORWARD, 15, PERCENT)
-        right_motor.spin(FORWARD, 35, PERCENT)
+        left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
+        right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
         wait(VISION_LOOP_MS, MSEC)
 
 def cone_detector():

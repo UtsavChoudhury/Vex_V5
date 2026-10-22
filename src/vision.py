@@ -66,8 +66,8 @@ def search_color_circle():
             controller.rumble(".")
             return
 
-        left_motor.spin(FORWARD, 15, PERCENT)
-        right_motor.spin(FORWARD, 35, PERCENT)
+        left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
+        right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
         wait(VISION_LOOP_MS, MSEC)
 
 def cone_detector():
