@@ -136,7 +136,8 @@ SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
 SEARCH_INNER_POWER = 5
 SEARCH_OUTER_POWER = 10
 APPROACH_FORWARD_POWER = 25
-APPROACH_TURN_POWER = 12
+APPROACH_TURN_POWER = 18
+APPROACH_CENTER_TOLERANCE = 20
 APPROACH_TARGET_WIDTH = 250
 APPROACH_MIN_TICKS = 25
 
@@ -270,10 +271,13 @@ def search_color_circle():
             return
 
         error = target.centerX - 160
-        correction = max(-APPROACH_TURN_POWER,
-                         min(APPROACH_TURN_POWER, error / 10.0))
-        left_motor.spin(FORWARD, APPROACH_FORWARD_POWER + correction, PERCENT)
-        right_motor.spin(FORWARD, APPROACH_FORWARD_POWER - correction, PERCENT)
+        if abs(error) > APPROACH_CENTER_TOLERANCE:
+            turn_direction = 1 if error > 0 else -1
+            left_motor.spin(FORWARD, turn_direction * APPROACH_TURN_POWER, PERCENT)
+            right_motor.spin(FORWARD, -turn_direction * APPROACH_TURN_POWER, PERCENT)
+        else:
+            left_motor.spin(FORWARD, APPROACH_FORWARD_POWER, PERCENT)
+            right_motor.spin(FORWARD, APPROACH_FORWARD_POWER, PERCENT)
         approach_ticks = approach_ticks + 1
         wait(VISION_LOOP_MS, MSEC)
 
