@@ -133,8 +133,8 @@ BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
 YELLOW_CONE_ID = 2               # colour "yellowcone"
 CONE_CODE_ID = 1                 # colour code "cone"
 SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
-SEARCH_INNER_POWER = 30
-SEARCH_OUTER_POWER = 60
+SEARCH_INNER_POWER = 1
+SEARCH_OUTER_POWER = 2
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
