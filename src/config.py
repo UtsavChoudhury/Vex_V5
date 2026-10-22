@@ -128,6 +128,9 @@ CONE_CODE_ID = 1                 # colour code "cone"
 SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
 SEARCH_INNER_POWER = 5
 SEARCH_OUTER_POWER = 10
+APPROACH_FORWARD_POWER = 15
+APPROACH_TURN_POWER = 12
+APPROACH_TARGET_WIDTH = 100
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.

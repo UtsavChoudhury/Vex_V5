@@ -41,7 +41,7 @@ def find_color(color_id):
     return largest
 
 def search_color_circle():
-    """Turn slowly in a circle until the yellow cone color is visible."""
+    """Find, center on, and approach the yellow cone."""
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
     brain.screen.clear_screen()
@@ -57,6 +57,36 @@ def search_color_circle():
             hits = 0
 
         if target is not None and hits >= VISION_CONFIRM_FRAMES:
+            break
+
+        left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
+        right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
+        wait(VISION_LOOP_MS, MSEC)
+
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("centering on yellow cone")
+
+    while True:
+        target = find_color(YELLOW_CONE_ID)
+        if target is None:
+            left_motor.stop()
+            right_motor.stop()
+            brain.screen.set_cursor(3, 1)
+            brain.screen.print("cone lost - searching")
+            hits = 0
+            while hits < VISION_CONFIRM_FRAMES:
+                target = find_color(YELLOW_CONE_ID)
+                if target is not None:
+                    hits = hits + 1
+                else:
+                    hits = 0
+                left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
+                right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
+                wait(VISION_LOOP_MS, MSEC)
+            continue
+
+        if target.width >= APPROACH_TARGET_WIDTH:
             left_motor.stop()
             right_motor.stop()
             brain.screen.set_cursor(3, 1)
@@ -67,8 +97,11 @@ def search_color_circle():
             controller.rumble("...")
             return
 
-        left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
-        right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
+        error = target.centerX - 160
+        correction = max(-APPROACH_TURN_POWER,
+                         min(APPROACH_TURN_POWER, error / 10.0))
+        left_motor.spin(FORWARD, APPROACH_FORWARD_POWER + correction, PERCENT)
+        right_motor.spin(FORWARD, APPROACH_FORWARD_POWER - correction, PERCENT)
         wait(VISION_LOOP_MS, MSEC)
 
 def cone_detector():
