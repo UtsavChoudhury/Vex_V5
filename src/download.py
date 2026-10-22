@@ -525,10 +525,6 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     search_color_circle()
-    for _ in range(3):
-        settle(3000)
-        drive(2000)
-        turn(180)
 
 
 # ======================== drivercontrol.py ========================
