@@ -23,6 +23,53 @@ def find_cone():
 
     return largest
 
+def find_color(color_id):
+    """Return the largest visible object with the requested colour id."""
+    largest = None
+    largest_area = 0
+
+    for obj in ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS):
+        if obj.id != color_id:
+            continue
+        if obj.width < VISION_MIN_WIDTH or obj.height < VISION_MIN_HEIGHT:
+            continue
+        area = obj.width * obj.height
+        if area > largest_area:
+            largest = obj
+            largest_area = area
+
+    return largest
+
+def search_color_circle():
+    """Turn slowly in a circle until the configured colour is visible."""
+    left_motor.set_stopping(BRAKE)
+    right_motor.set_stopping(BRAKE)
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("searching for color %d" % SEARCH_COLOR_ID)
+
+    hits = 0
+    while True:
+        target = find_color(SEARCH_COLOR_ID)
+        if target is not None:
+            hits = hits + 1
+        else:
+            hits = 0
+
+        if target is not None and hits >= VISION_CONFIRM_FRAMES:
+            left_motor.stop()
+            right_motor.stop()
+            brain.screen.set_cursor(3, 1)
+            brain.screen.print("found color %d" % SEARCH_COLOR_ID)
+            brain.screen.set_cursor(4, 1)
+            brain.screen.print("x %d  y %d" % (target.centerX, target.centerY))
+            controller.rumble(".")
+            return
+
+        left_motor.spin(FORWARD, 15, PERCENT)
+        right_motor.spin(FORWARD, 35, PERCENT)
+        wait(VISION_LOOP_MS, MSEC)
+
 def cone_detector():
     """Watch continuously and announce the cone each time it comes into view."""
     brain.screen.clear_screen()

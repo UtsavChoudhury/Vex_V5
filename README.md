@@ -51,6 +51,7 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | Call | Purpose |
 |------|---------|
 | `cone_detector()` | watch through the AI Vision sensor, announce the cone |
+| `search_color_circle()` | slowly circle until `SEARCH_COLOR_ID` is found |
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
