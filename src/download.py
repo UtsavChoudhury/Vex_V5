@@ -147,7 +147,12 @@ APPROACH_MIN_TURN = 4            # smallest turn power that actually moves the r
 APPROACH_MAX_TURN = 15
 APPROACH_DRIVE_ERROR = 40        # beyond this many px, turn in place instead of driving
 APPROACH_CENTER_TOLERANCE = 3
-APPROACH_TARGET_WIDTH = 250
+APPROACH_TARGET_WIDTH = 250      # cone width in px that counts as close enough
+APPROACH_STEP_MAX_MM = 400       # step when the cone is tiny
+APPROACH_STEP_MIN_MM = 40        # step when nearly there
+APPROACH_SPEED = 30              # percent
+APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
+APPROACH_MAX_STEPS = 25
 VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
 ALIGN_TOLERANCE_PX = 2           # final aim accuracy, about half a degree
 ALIGN_SAMPLES = 7                # frames per median measurement
@@ -678,6 +683,36 @@ def scan_for_cone():
     return False
 
 
+def approach_cone():
+    """Stop, measure, re-aim if needed, drive a step that shrinks as the cone grows."""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("APPROACH  target w %d" % APPROACH_TARGET_WIDTH)
+    for step in range(APPROACH_MAX_STEPS):
+        settle(ALIGN_SETTLE_MS)
+        reading = measure_cone()
+        brain.screen.set_cursor(2 + step % 10, 1)
+        brain.screen.clear_line()
+        if reading is None:
+            brain.screen.print("%d  cone not seen" % (step + 1))
+            return False
+        x, spread, width = reading
+        error = x - VISION_CENTER_X
+        if width >= APPROACH_TARGET_WIDTH:
+            brain.screen.print("%d  x %d  w %d  DONE" % (step + 1, x, width))
+            return True
+        if abs(error) > APPROACH_REAIM_PX:
+            angle = error * VISION_DEG_PER_PX
+            brain.screen.print("%d  x %d  w %d  aim %.1f" % (step + 1, x, width, angle))
+            turn(angle, ALIGN_TURN_SPEED)
+            continue
+        remaining = 1.0 - width / float(APPROACH_TARGET_WIDTH)
+        distance = max(APPROACH_STEP_MIN_MM, APPROACH_STEP_MAX_MM * remaining)
+        brain.screen.print("%d  x %d  w %d  drive %d" % (step + 1, x, width, distance))
+        drive(distance, APPROACH_SPEED)
+    return False
+
+
 # --- Routine ---
 
 def autonomous():
@@ -685,7 +720,7 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     wait(AUTO_START_DELAY_MS, MSEC)
-    if scan_for_cone() and align_to_cone():
+    if scan_for_cone() and align_to_cone() and approach_cone() and align_to_cone():
         controller.rumble("...")
     else:
         controller.rumble("-")

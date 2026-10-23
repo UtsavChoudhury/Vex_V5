@@ -55,7 +55,7 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | wait 5 s, scan a full circle in 45° steps for the cone, align to it |
+| `autonomous()` | wait 5 s, scan a full circle in 45° steps for the cone, align, approach, align again |
 | `turn_tuner()` | on-robot turn calibration |
 
 Field control switches between `autonomous()` and `user_control()` at a real
@@ -152,9 +152,14 @@ Once the cone is seen it runs
 `align_to_cone()`. That step repeats: wait for the robot to settle, take the
 median `centerX` over 7 frames, convert the pixel error to degrees
 (`VISION_DEG_PER_PX`), and turn that far by encoder. It finishes when the error
-is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step. The
-controller gives three short rumbles when aligned and one long rumble when it
-gave up.
+is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step.
+
+`approach_cone()` then repeats: settle, measure, re-aim if `centerX` is more
+than `APPROACH_REAIM_PX` off, otherwise drive straight. The step scales from
+`APPROACH_STEP_MAX_MM` down to `APPROACH_STEP_MIN_MM` as the cone's width nears
+`APPROACH_TARGET_WIDTH`, which is the "close enough" setting: raise it to stop
+closer. A final `align_to_cone()` squares up at the end. The controller gives
+three short rumbles when every stage succeeded and one long rumble otherwise.
 
 If it reports `err 0` but the robot is visibly angled, the camera is not on the
 robot's centreline. Aim the robot at the cone by hand, read `x` from
