@@ -269,13 +269,36 @@ def approach_cone():
     return False
 
 
+def start_wait_report(ms):
+    """Wait out the start delay showing live AI Vision status, so a dead sensor shows up."""
+    brain.screen.clear_screen()
+    end = brain.timer.time(MSEC) + ms
+    while brain.timer.time(MSEC) < end:
+        codes = ai_vision.take_snapshot(AiVision.ALL_CODES, VISION_MAX_OBJECTS)
+        colors = ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS)
+        cone = find_cone()
+        brain.screen.clear_line(1)
+        brain.screen.set_cursor(1, 1)
+        brain.screen.print("START  installed %s  stamp %d" % (ai_vision.installed(), ai_vision.timestamp()))
+        brain.screen.clear_line(2)
+        brain.screen.set_cursor(2, 1)
+        brain.screen.print("codes %d  colours %d" % (len(codes), len(colors)))
+        brain.screen.clear_line(3)
+        brain.screen.set_cursor(3, 1)
+        if cone is not None:
+            brain.screen.print("cone x %d y %d  %dx%d" % (cone.centerX, cone.centerY, cone.width, cone.height))
+        else:
+            brain.screen.print("cone none")
+        wait(250, MSEC)
+
+
 # --- Routine ---
 
 def autonomous():
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     manipulator_init()
-    wait(AUTO_START_DELAY_MS, MSEC)
+    start_wait_report(AUTO_START_DELAY_MS)
     if scan_for_cone() and align_to_cone() and approach_cone() and align_to_cone():
         controller.rumble("...")
     else:

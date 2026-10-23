@@ -144,7 +144,8 @@ in each direction (150 ms), which rides out a dropped frame without lag.
 
 ### Aligning to the cone
 
-Autonomous waits `AUTO_START_DELAY_MS`, then `scan_for_cone()` looks, turns
+Autonomous waits `AUTO_START_DELAY_MS` showing live AI Vision status (sensor
+installed, timestamp, code and colour counts, cone position), then `scan_for_cone()` looks, turns
 `SCAN_STEP_DEG` in place at `SCAN_TURN_SPEED`, and looks again, through a full
 circle. It only looks while stopped, because the colour code is unreliable on
 blurred frames mid-turn. A 360 that falls short means `TURN_SCALE` needs tuning.
