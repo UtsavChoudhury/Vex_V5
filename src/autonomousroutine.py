@@ -215,12 +215,12 @@ def align_to_cone(tolerance=ALIGN_TOLERANCE_PX):
 
 
 def scan_for_cone():
-    """Turn in SCAN_STEP_DEG steps through a full circle, looking only while stopped."""
-    steps = int(360 / SCAN_STEP_DEG)
+    """Turn in SCAN_STEP_DEG steps, looking only while stopped, until the cone is found."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("SCAN  need %d/%d  min %dpx" % (SCAN_MIN_HITS, ALIGN_SAMPLES, VISION_MIN_WIDTH))
-    for step in range(steps + 1):
+    step = 0
+    while True:
         settle(ALIGN_SETTLE_MS)
         hits = 0
         width = 0
@@ -230,13 +230,13 @@ def scan_for_cone():
                 hits = hits + 1
                 width = max(width, target.width)
             wait(VISION_LOOP_MS, MSEC)
-        brain.screen.set_cursor(step + 2, 1)
-        brain.screen.print("%3d deg  seen %d/%d  w %d" % (step * SCAN_STEP_DEG, hits, ALIGN_SAMPLES, width))
+        brain.screen.set_cursor(2 + step % 10, 1)
+        brain.screen.clear_line()
+        brain.screen.print("%3d deg  seen %d/%d  w %d" % (step * SCAN_STEP_DEG % 360, hits, ALIGN_SAMPLES, width))
         if hits >= SCAN_MIN_HITS:
-            return True
-        if step < steps:
-            turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)
-    return False
+            return
+        turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)
+        step = step + 1
 
 
 def approach_cone():
@@ -305,9 +305,7 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     start_wait_report(AUTO_START_DELAY_MS)
-    if not scan_for_cone():
-        controller.rumble("-")
-        return
+    scan_for_cone()
     align_to_cone()
     if approach_cone() and align_to_cone(FINAL_ALIGN_TOLERANCE_PX):
         controller.rumble("...")

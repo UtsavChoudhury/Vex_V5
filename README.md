@@ -55,7 +55,7 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | wait 5 s, scan a full circle in 30° steps for the cone, align, approach, align again |
+| `autonomous()` | wait 5 s, turn in 15° steps until the cone is found, align, approach, align again |
 | `turn_tuner()` | on-robot turn calibration |
 
 Field control switches between `autonomous()` and `user_control()` at a real
@@ -147,8 +147,8 @@ in each direction (150 ms), which rides out a dropped frame without lag.
 
 Autonomous waits `AUTO_START_DELAY_MS` showing live AI Vision status (sensor
 installed, timestamp, code and colour counts, cone position), then `scan_for_cone()` looks, turns
-`SCAN_STEP_DEG` in place at `SCAN_TURN_SPEED`, and looks again, through a full
-circle. It only looks while stopped, because the colour code is unreliable on
+`SCAN_STEP_DEG` in place at `SCAN_TURN_SPEED`, and looks again, forever until
+the cone is found. It only looks while stopped, because the colour code is unreliable on
 blurred frames mid-turn. A 360 that falls short means `TURN_SCALE` needs tuning.
 Once the cone is seen it runs
 `align_to_cone()`. That step repeats: wait for the robot to settle, take the
