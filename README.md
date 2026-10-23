@@ -159,7 +159,11 @@ median `centerX` over 7 frames, convert the pixel error to degrees
 is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step.
 
 `approach_cone()` runs straight after the scan; it aims as it goes, so there is
-no separate alignment first. Each step it settles and measures (looking twice before calling the cone lost),
+no separate alignment first. Its first step uses the scan's own sighting, so a
+distant cone that only just passed the scan is driven at, not re-checked. After
+that each step settles and measures. If the cone drops out it drives
+`APPROACH_BLIND_STEP_MM` straight on, up to `APPROACH_BLIND_STEPS` times in a
+row, before giving up and rescanning. Otherwise it
 turns to face it if `centerX` is more than `APPROACH_REAIM_PX` off, and drives
 straight. The step scales from `APPROACH_STEP_MAX_MM` down to
 `APPROACH_STEP_MIN_MM` as the cone's width nears `APPROACH_TARGET_WIDTH`, which

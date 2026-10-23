@@ -215,7 +215,7 @@ def align_to_cone(tolerance=ALIGN_TOLERANCE_PX):
 
 
 def scan_for_cone():
-    """Turn in SCAN_STEP_DEG steps, looking only while stopped, until the cone is found."""
+    """Turn in SCAN_STEP_DEG steps, looking only while stopped; returns (x, width) once found."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("SCAN  need %d/%d  min %dpx" % (SCAN_MIN_HITS, ALIGN_SAMPLES, VISION_MIN_WIDTH))
@@ -224,17 +224,20 @@ def scan_for_cone():
         settle(ALIGN_SETTLE_MS)
         hits = 0
         width = 0
+        xs = []
         for i in range(ALIGN_SAMPLES):
             target = find_cone()
             if target is not None:
                 hits = hits + 1
                 width = max(width, target.width)
+                xs.append(target.centerX)
             wait(VISION_LOOP_MS, MSEC)
         brain.screen.set_cursor(2 + step % 10, 1)
         brain.screen.clear_line()
         brain.screen.print("look %d  seen %d/%d  w %d" % (step + 1, hits, ALIGN_SAMPLES, width))
         if hits >= SCAN_MIN_HITS:
-            return
+            xs.sort()
+            return xs[len(xs) // 2], width
         turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)
         step = step + 1
 
@@ -245,27 +248,37 @@ def approach_report(text):
     controller.screen.set_cursor(1, 1)
     controller.screen.print(text)
 
-def approach_cone():
-    """Stop, measure, aim, drive a step that shrinks as the cone grows; until close or lost."""
+def approach_cone(first):
+    """Aim and drive in shrinking steps until close; drives blind a few steps if the cone drops out."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("APPROACH  target w %d" % APPROACH_TARGET_WIDTH)
     last_drive_width = None
     stalls = 0
+    misses = 0
     step = 0
     while True:
-        settle(ALIGN_SETTLE_MS)
-        reading = measure_cone()
-        if reading is None:
+        if step == 0:
+            x, width = first
+        else:
             settle(ALIGN_SETTLE_MS)
             reading = measure_cone()
+            brain.screen.set_cursor(2 + step % 10, 1)
+            brain.screen.clear_line()
+            if reading is None:
+                misses = misses + 1
+                if misses > APPROACH_BLIND_STEPS:
+                    brain.screen.print("%d  cone not seen" % (step + 1))
+                    approach_report("lost cone")
+                    return False
+                brain.screen.print("%d  not seen, blind %d" % (step + 1, APPROACH_BLIND_STEP_MM))
+                drive(APPROACH_BLIND_STEP_MM, APPROACH_SPEED)
+                step = step + 1
+                continue
+            misses = 0
+            x, spread, width = reading
         brain.screen.set_cursor(2 + step % 10, 1)
         brain.screen.clear_line()
-        if reading is None:
-            brain.screen.print("%d  cone not seen" % (step + 1))
-            approach_report("lost cone")
-            return False
-        x, spread, width = reading
         error = x - VISION_CENTER_X
         if width >= APPROACH_TARGET_WIDTH:
             brain.screen.print("%d  x %d  w %d  DONE" % (step + 1, x, width))
@@ -323,8 +336,7 @@ def autonomous():
     manipulator_init()
     start_wait_report(AUTO_START_DELAY_MS)
     while True:
-        scan_for_cone()
-        if approach_cone():
+        if approach_cone(scan_for_cone()):
             break
         controller.rumble("-")
     align_to_cone(FINAL_ALIGN_TOLERANCE_PX)
