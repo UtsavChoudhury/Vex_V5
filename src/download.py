@@ -781,7 +781,6 @@ def autonomous():
     start_wait_report(AUTO_START_DELAY_MS)
     while True:
         scan_for_cone()
-        align_to_cone()
         if approach_cone():
             break
         controller.rumble("-")

@@ -55,7 +55,7 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | wait 5 s, turn in 15° steps until the cone is found, align, approach, align again |
+| `autonomous()` | wait 5 s, turn in 15° steps until the cone is found, approach, align |
 | `turn_tuner()` | on-robot turn calibration |
 
 Field control switches between `autonomous()` and `user_control()` at a real
@@ -158,8 +158,8 @@ median `centerX` over 7 frames, convert the pixel error to degrees
 (`VISION_DEG_PER_PX`), and turn that far by encoder. It finishes when the error
 is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step.
 
-`approach_cone()` then runs whether or not that first alignment converged. Each
-step it settles and measures (looking twice before calling the cone lost),
+`approach_cone()` runs straight after the scan; it aims as it goes, so there is
+no separate alignment first. Each step it settles and measures (looking twice before calling the cone lost),
 turns to face it if `centerX` is more than `APPROACH_REAIM_PX` off, and drives
 straight. The step scales from `APPROACH_STEP_MAX_MM` down to
 `APPROACH_STEP_MIN_MM` as the cone's width nears `APPROACH_TARGET_WIDTH`, which
