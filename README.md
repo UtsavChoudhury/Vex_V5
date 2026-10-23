@@ -155,7 +155,8 @@ median `centerX` over 7 frames, convert the pixel error to degrees
 (`VISION_DEG_PER_PX`), and turn that far by encoder. It finishes when the error
 is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step.
 
-`approach_cone()` then repeats: settle, measure, re-aim if `centerX` is more
+`approach_cone()` then runs whether or not that first alignment converged, since
+it re-aims as it goes. It repeats: settle, measure, re-aim if `centerX` is more
 than `APPROACH_REAIM_PX` off, otherwise drive straight. The step scales from
 `APPROACH_STEP_MAX_MM` down to `APPROACH_STEP_MIN_MM` as the cone's width nears
 `APPROACH_TARGET_WIDTH`, which is the "close enough" setting: raise it to stop
