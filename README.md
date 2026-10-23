@@ -78,7 +78,9 @@ Check the cartridge colour matches the `GearSetting`: green `RATIO_18_1`, blue
 overshoots every move by exactly 3×.
 
 Whatever error remains — mostly wheel scrub, which no formula predicts — is
-absorbed by `TURN_SCALE`. Find it with `turn_tuner()`:
+absorbed by `TURN_SCALE`. Find it with `turn_tuner()`. Hold **L1** on the
+controller while starting the program to get the tuner instead of autonomous. It
+starts at `SCAN_TURN_SPEED`, the speed the cone scan turns at.
 
 1. Put tape on the floor, line the nose up with it.
 2. **A** runs the test spin, **B** spins back.

@@ -542,7 +542,7 @@ def turn_tuner():
     global TURN_SCALE
 
     spins = 1
-    speed = AUTO_TURN_SPEED
+    speed = SCAN_TURN_SPEED
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     tuner_screen(spins, speed)
@@ -957,7 +957,8 @@ def main():
     # cone_detector()
     # search_color_circle()
     # user_control()
+    if controller.buttonL1.pressing():
+        turn_tuner()
     autonomous()
-    # turn_tuner()
 
 main()
