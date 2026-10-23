@@ -38,6 +38,7 @@ AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far le
 AUTO_START_DELAY_MS = 5000
 SCAN_STEP_DEG = 45        # under the camera's 74 deg FOV, so views overlap
 SCAN_TURN_SPEED = 25      # percent, both sides equal and opposite
+SCAN_MIN_HITS = 3         # of ALIGN_SAMPLES frames at a stop
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -159,8 +160,8 @@ ai_vision = AiVision(AI_VISION_PORT, BLUE_CONE, YELLOW_CONE, CONE)
 # snapshot comes back empty even though the sensor is streaming.
 ai_vision.color_detection(True)
 
-VISION_MIN_WIDTH = 20
-VISION_MIN_HEIGHT = 20
+VISION_MIN_WIDTH = 6             # a cone across the field is only ~15 px wide
+VISION_MIN_HEIGHT = 6
 
 VISION_CONFIRM_FRAMES = 3
 

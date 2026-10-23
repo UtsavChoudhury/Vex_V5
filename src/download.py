@@ -45,6 +45,7 @@ AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far le
 AUTO_START_DELAY_MS = 5000
 SCAN_STEP_DEG = 45        # under the camera's 74 deg FOV, so views overlap
 SCAN_TURN_SPEED = 25      # percent, both sides equal and opposite
+SCAN_MIN_HITS = 3         # of ALIGN_SAMPLES frames at a stop
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -166,8 +167,8 @@ ai_vision = AiVision(AI_VISION_PORT, BLUE_CONE, YELLOW_CONE, CONE)
 # snapshot comes back empty even though the sensor is streaming.
 ai_vision.color_detection(True)
 
-VISION_MIN_WIDTH = 20
-VISION_MIN_HEIGHT = 20
+VISION_MIN_WIDTH = 6             # a cone across the field is only ~15 px wide
+VISION_MIN_HEIGHT = 6
 
 VISION_CONFIRM_FRAMES = 3
 
@@ -193,7 +194,7 @@ def manipulator_init():
 # --- AI Vision ---
 
 def find_cone():
-    """Largest 'cone' colour code currently in view, or None."""
+    """Largest 'cone' colour code in view, else a yellow blob beside a blue one, or None."""
     largest = None
     largest_area = 0
 
@@ -207,7 +208,27 @@ def find_cone():
             largest = obj
             largest_area = area
 
-    return largest
+    if largest is not None:
+        return largest
+    return find_color_pair()
+
+def find_color_pair():
+    """Largest yellow blob with a blue blob next to it, for when the code drops out."""
+    yellow = None
+    blue = None
+    for obj in ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS):
+        if obj.width < VISION_MIN_WIDTH or obj.height < VISION_MIN_HEIGHT:
+            continue
+        if obj.id == YELLOW_CONE_ID and (yellow is None or obj.width * obj.height > yellow.width * yellow.height):
+            yellow = obj
+        elif obj.id == BLUE_CONE_ID and (blue is None or obj.width * obj.height > blue.width * blue.height):
+            blue = obj
+    if yellow is None or blue is None:
+        return None
+    gap = max(yellow.width, yellow.height, blue.width, blue.height)
+    if abs(yellow.centerX - blue.centerX) > gap or abs(yellow.centerY - blue.centerY) > gap:
+        return None
+    return yellow
 
 def find_color(color_id):
     """Return the largest visible object with the requested colour id."""
@@ -594,7 +615,7 @@ def measure_cone():
             xs.append(target.centerX)
             widths.append(target.width)
         wait(VISION_LOOP_MS, MSEC)
-    if len(xs) <= ALIGN_SAMPLES // 2:
+    if len(xs) < SCAN_MIN_HITS:
         return None
     xs.sort()
     widths.sort()
@@ -636,12 +657,21 @@ def scan_for_cone():
     """Turn in SCAN_STEP_DEG steps through a full circle, looking only while stopped."""
     steps = int(360 / SCAN_STEP_DEG)
     brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("SCAN  need %d/%d  min %dpx" % (SCAN_MIN_HITS, ALIGN_SAMPLES, VISION_MIN_WIDTH))
     for step in range(steps + 1):
         settle(ALIGN_SETTLE_MS)
-        brain.screen.set_cursor(1, 1)
-        brain.screen.clear_line()
-        brain.screen.print("SCAN  %d deg" % (step * SCAN_STEP_DEG))
-        if measure_cone() is not None:
+        hits = 0
+        width = 0
+        for i in range(ALIGN_SAMPLES):
+            target = find_cone()
+            if target is not None:
+                hits = hits + 1
+                width = max(width, target.width)
+            wait(VISION_LOOP_MS, MSEC)
+        brain.screen.set_cursor(step + 2, 1)
+        brain.screen.print("%3d deg  seen %d/%d  w %d" % (step * SCAN_STEP_DEG, hits, ALIGN_SAMPLES, width))
+        if hits >= SCAN_MIN_HITS:
             return True
         if step < steps:
             turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)

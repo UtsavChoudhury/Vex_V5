@@ -176,7 +176,7 @@ def measure_cone():
             xs.append(target.centerX)
             widths.append(target.width)
         wait(VISION_LOOP_MS, MSEC)
-    if len(xs) <= ALIGN_SAMPLES // 2:
+    if len(xs) < SCAN_MIN_HITS:
         return None
     xs.sort()
     widths.sort()
@@ -218,12 +218,21 @@ def scan_for_cone():
     """Turn in SCAN_STEP_DEG steps through a full circle, looking only while stopped."""
     steps = int(360 / SCAN_STEP_DEG)
     brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print("SCAN  need %d/%d  min %dpx" % (SCAN_MIN_HITS, ALIGN_SAMPLES, VISION_MIN_WIDTH))
     for step in range(steps + 1):
         settle(ALIGN_SETTLE_MS)
-        brain.screen.set_cursor(1, 1)
-        brain.screen.clear_line()
-        brain.screen.print("SCAN  %d deg" % (step * SCAN_STEP_DEG))
-        if measure_cone() is not None:
+        hits = 0
+        width = 0
+        for i in range(ALIGN_SAMPLES):
+            target = find_cone()
+            if target is not None:
+                hits = hits + 1
+                width = max(width, target.width)
+            wait(VISION_LOOP_MS, MSEC)
+        brain.screen.set_cursor(step + 2, 1)
+        brain.screen.print("%3d deg  seen %d/%d  w %d" % (step * SCAN_STEP_DEG, hits, ALIGN_SAMPLES, width))
+        if hits >= SCAN_MIN_HITS:
             return True
         if step < steps:
             turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)

@@ -7,7 +7,7 @@ from config import *
 # --- AI Vision ---
 
 def find_cone():
-    """Largest 'cone' colour code currently in view, or None."""
+    """Largest 'cone' colour code in view, else a yellow blob beside a blue one, or None."""
     largest = None
     largest_area = 0
 
@@ -21,7 +21,27 @@ def find_cone():
             largest = obj
             largest_area = area
 
-    return largest
+    if largest is not None:
+        return largest
+    return find_color_pair()
+
+def find_color_pair():
+    """Largest yellow blob with a blue blob next to it, for when the code drops out."""
+    yellow = None
+    blue = None
+    for obj in ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS):
+        if obj.width < VISION_MIN_WIDTH or obj.height < VISION_MIN_HEIGHT:
+            continue
+        if obj.id == YELLOW_CONE_ID and (yellow is None or obj.width * obj.height > yellow.width * yellow.height):
+            yellow = obj
+        elif obj.id == BLUE_CONE_ID and (blue is None or obj.width * obj.height > blue.width * blue.height):
+            blue = obj
+    if yellow is None or blue is None:
+        return None
+    gap = max(yellow.width, yellow.height, blue.width, blue.height)
+    if abs(yellow.centerX - blue.centerX) > gap or abs(yellow.centerY - blue.centerY) > gap:
+        return None
+    return yellow
 
 def find_color(color_id):
     """Return the largest visible object with the requested colour id."""

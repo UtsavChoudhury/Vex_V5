@@ -114,8 +114,14 @@ unnecessary — turns stop caring about track width and scrub entirely.
 ## AI Vision
 
 The cone is a colour code: two colours that only match when found adjacent to
-each other, which is exactly the half-yellow half-blue cone. A plain yellow
-object cannot trigger it.
+each other, which is exactly the half-yellow half-blue cone. The code drops out
+at range, so `find_cone()` falls back to a yellow blob with a blue blob right
+beside it (`find_color_pair()`). A plain yellow object alone still cannot
+trigger it. Blobs under `VISION_MIN_WIDTH` x `VISION_MIN_HEIGHT` px are ignored;
+a cone across the field is only about 15 px wide.
+
+`scan_for_cone()` logs one row per stop: the angle, how many of the 7 frames
+saw the cone, and its widest width. It needs `SCAN_MIN_HITS` frames to stop.
 
 | Kind | Index | Name |
 |------|-------|------|
