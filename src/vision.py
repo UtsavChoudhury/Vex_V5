@@ -49,9 +49,11 @@ def find_color_pair():
     gap = max(yellow.width, yellow.height, blue.width, blue.height)
     if abs(yellow.centerX - blue.centerX) > gap or abs(yellow.centerY - blue.centerY) > gap:
         return None
-    return ConeBox(min(yellow.originX, blue.originX), min(yellow.originY, blue.originY),
-                   max(yellow.originX + yellow.width, blue.originX + blue.width),
-                   max(yellow.originY + yellow.height, blue.originY + blue.height))
+    left = min(yellow.centerX - yellow.width // 2, blue.centerX - blue.width // 2)
+    right = max(yellow.centerX + yellow.width // 2, blue.centerX + blue.width // 2)
+    top = min(yellow.centerY - yellow.height // 2, blue.centerY - blue.height // 2)
+    bottom = max(yellow.centerY + yellow.height // 2, blue.centerY + blue.height // 2)
+    return ConeBox(left, top, right, bottom)
 
 def find_color(color_id):
     """Return the largest visible object with the requested colour id."""
