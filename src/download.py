@@ -43,7 +43,7 @@ TURN_SCALE = 1.00
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
 AUTO_START_DELAY_MS = 5000
-SPIN_AROUND_SPEED = 75    # percent, both sides equal and opposite
+SPIN_AROUND_SPEED = 22    # percent, both sides equal and opposite
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -631,6 +631,28 @@ def align_to_cone():
     return False
 
 
+def spin_until_cone(degrees, speed):
+    """Turn in place up to `degrees`, stopping early once the cone is confirmed."""
+    wheel_deg = wheel_degrees_for_turn(degrees)
+    timeout_ms = move_timeout_ms(wheel_deg, speed)
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
+    left_motor.set_timeout(timeout_ms, MSEC)
+    right_motor.set_timeout(timeout_ms, MSEC)
+    left_motor.spin_for(FORWARD, wheel_deg, DEGREES, speed, PERCENT, wait=False)
+    right_motor.spin_for(FORWARD, -wheel_deg, DEGREES, speed, PERCENT, wait=False)
+
+    hits = 0
+    while left_motor.is_spinning() or right_motor.is_spinning():
+        hits = hits + 1 if find_cone() is not None else 0
+        if hits >= VISION_CONFIRM_FRAMES:
+            break
+        wait(VISION_LOOP_MS, MSEC)
+    left_motor.stop()
+    right_motor.stop()
+    return hits >= VISION_CONFIRM_FRAMES
+
+
 # --- Routine ---
 
 def autonomous():
@@ -638,9 +660,7 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     wait(AUTO_START_DELAY_MS, MSEC)
-    turn(360, SPIN_AROUND_SPEED)
-    left_motor.stop()
-    right_motor.stop()
+    spin_until_cone(360, SPIN_AROUND_SPEED)
     if align_to_cone():
         controller.rumble("...")
     else:
