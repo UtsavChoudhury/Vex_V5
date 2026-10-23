@@ -152,7 +152,6 @@ APPROACH_STEP_MAX_MM = 400       # step when the cone is tiny
 APPROACH_STEP_MIN_MM = 40        # step when nearly there
 APPROACH_SPEED = 30              # percent
 APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
-APPROACH_MAX_STEPS = 25
 APPROACH_MIN_GROWTH_PX = 3       # past half target width, less gain per step means touching it
 FINAL_ALIGN_TOLERANCE_PX = 8     # close up the centre jitters, so square up loosely
 VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
@@ -697,40 +696,57 @@ def scan_for_cone():
         step = step + 1
 
 
+def approach_report(text):
+    """Why the approach ended, on the controller so the brain's final align can't clear it."""
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print(text)
+
 def approach_cone():
-    """Stop, measure, re-aim if needed, drive a step that shrinks as the cone grows."""
+    """Stop, measure, aim, drive a step that shrinks as the cone grows; until close or lost."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("APPROACH  target w %d" % APPROACH_TARGET_WIDTH)
     last_drive_width = None
-    for step in range(APPROACH_MAX_STEPS):
+    stalls = 0
+    step = 0
+    while True:
         settle(ALIGN_SETTLE_MS)
         reading = measure_cone()
+        if reading is None:
+            settle(ALIGN_SETTLE_MS)
+            reading = measure_cone()
         brain.screen.set_cursor(2 + step % 10, 1)
         brain.screen.clear_line()
         if reading is None:
             brain.screen.print("%d  cone not seen" % (step + 1))
+            approach_report("lost cone")
             return False
         x, spread, width = reading
         error = x - VISION_CENTER_X
         if width >= APPROACH_TARGET_WIDTH:
             brain.screen.print("%d  x %d  w %d  DONE" % (step + 1, x, width))
+            approach_report("close w %d" % width)
             return True
         close = last_drive_width is not None and last_drive_width >= APPROACH_TARGET_WIDTH // 2
         if close and width < last_drive_width + APPROACH_MIN_GROWTH_PX:
-            brain.screen.print("%d  x %d  w %d  not growing, DONE" % (step + 1, x, width))
-            return True
+            stalls = stalls + 1
+            if stalls >= 2:
+                brain.screen.print("%d  x %d  w %d  not growing, DONE" % (step + 1, x, width))
+                approach_report("touching w %d" % width)
+                return True
+        else:
+            stalls = 0
+        angle = 0.0
         if abs(error) > APPROACH_REAIM_PX:
             angle = error * VISION_DEG_PER_PX
-            brain.screen.print("%d  x %d  w %d  aim %.1f" % (step + 1, x, width, angle))
             turn(angle, ALIGN_TURN_SPEED)
-            continue
         remaining = 1.0 - width / float(APPROACH_TARGET_WIDTH)
         distance = max(APPROACH_STEP_MIN_MM, APPROACH_STEP_MAX_MM * remaining)
-        brain.screen.print("%d  x %d  w %d  drive %d" % (step + 1, x, width, distance))
+        brain.screen.print("%d  x %d  w %d  aim %.1f  drive %d" % (step + 1, x, width, angle, distance))
         last_drive_width = width
         drive(distance, APPROACH_SPEED)
-    return False
+        step = step + 1
 
 
 def start_wait_report(ms):

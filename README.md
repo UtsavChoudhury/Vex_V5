@@ -158,14 +158,15 @@ median `centerX` over 7 frames, convert the pixel error to degrees
 (`VISION_DEG_PER_PX`), and turn that far by encoder. It finishes when the error
 is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step.
 
-`approach_cone()` then runs whether or not that first alignment converged, since
-it re-aims as it goes. It repeats: settle, measure, re-aim if `centerX` is more
-than `APPROACH_REAIM_PX` off, otherwise drive straight. The step scales from
-`APPROACH_STEP_MAX_MM` down to `APPROACH_STEP_MIN_MM` as the cone's width nears
-`APPROACH_TARGET_WIDTH`, which is the "close enough" setting: raise it to stop
-closer. Past half the target width, a drive step that grows the cone by less
-than `APPROACH_MIN_GROWTH_PX` also ends the approach: the robot is touching or
-pushing it. A final `align_to_cone(FINAL_ALIGN_TOLERANCE_PX)` squares up at the
+`approach_cone()` then runs whether or not that first alignment converged. Each
+step it settles and measures (looking twice before calling the cone lost),
+turns to face it if `centerX` is more than `APPROACH_REAIM_PX` off, and drives
+straight. The step scales from `APPROACH_STEP_MAX_MM` down to
+`APPROACH_STEP_MIN_MM` as the cone's width nears `APPROACH_TARGET_WIDTH`, which
+is the "close enough" setting: raise it to stop closer. Past half the target
+width, two drive steps in a row that grow the cone by less than
+`APPROACH_MIN_GROWTH_PX` also end the approach: the robot is touching or pushing
+it. The reason it ended is shown on the controller screen. A final `align_to_cone(FINAL_ALIGN_TOLERANCE_PX)` squares up at the
 end with a looser tolerance, because the centre jitters close up. The controller gives
 one long rumble each time it loses the cone and goes back to scanning, and three
 short rumbles once it has reached the cone.

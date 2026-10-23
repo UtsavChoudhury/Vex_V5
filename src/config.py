@@ -145,7 +145,6 @@ APPROACH_STEP_MAX_MM = 400       # step when the cone is tiny
 APPROACH_STEP_MIN_MM = 40        # step when nearly there
 APPROACH_SPEED = 30              # percent
 APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
-APPROACH_MAX_STEPS = 25
 APPROACH_MIN_GROWTH_PX = 3       # past half target width, less gain per step means touching it
 FINAL_ALIGN_TOLERANCE_PX = 8     # close up the centre jitters, so square up loosely
 VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
