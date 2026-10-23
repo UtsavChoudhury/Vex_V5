@@ -154,6 +154,7 @@ APPROACH_SPEED = 30              # percent
 APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
 APPROACH_BLIND_STEPS = 3         # misses in a row driven through before rescanning
 APPROACH_BLIND_STEP_MM = 150
+APPROACH_MAX_GROWTH = 2.5        # a step can't grow the cone more than this; bigger is another object
 APPROACH_MIN_GROWTH_PX = 3       # past half target width, less gain per step means touching it
 FINAL_ALIGN_TOLERANCE_PX = 8     # close up the centre jitters, so square up loosely
 VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
@@ -715,6 +716,7 @@ def approach_cone(first):
     last_drive_width = None
     stalls = 0
     misses = 0
+    seen_width = None
     step = 0
     while True:
         if step == 0:
@@ -725,17 +727,24 @@ def approach_cone(first):
             brain.screen.set_cursor(2 + step % 10, 1)
             brain.screen.clear_line()
             if reading is None:
+                brain.screen.print("%d  not seen" % (step + 1))
+            elif seen_width is not None and reading[2] > seen_width * APPROACH_MAX_GROWTH:
+                brain.screen.print("%d  jump to w %d ignored" % (step + 1, reading[2]))
+                reading = None
+            if reading is None:
                 misses = misses + 1
                 if misses > APPROACH_BLIND_STEPS:
                     brain.screen.print("%d  cone not seen" % (step + 1))
                     approach_report("lost cone")
                     return False
-                brain.screen.print("%d  not seen, blind %d" % (step + 1, APPROACH_BLIND_STEP_MM))
+                brain.screen.set_cursor(2 + step % 10, 30)
+                brain.screen.print("blind %d" % APPROACH_BLIND_STEP_MM)
                 drive(APPROACH_BLIND_STEP_MM, APPROACH_SPEED)
                 step = step + 1
                 continue
             misses = 0
             x, spread, width = reading
+        seen_width = width
         brain.screen.set_cursor(2 + step % 10, 1)
         brain.screen.clear_line()
         error = x - VISION_CENTER_X

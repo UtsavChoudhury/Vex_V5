@@ -163,7 +163,9 @@ no separate alignment first. Its first step uses the scan's own sighting, so a
 distant cone that only just passed the scan is driven at, not re-checked. After
 that each step settles and measures. If the cone drops out it drives
 `APPROACH_BLIND_STEP_MM` straight on, up to `APPROACH_BLIND_STEPS` times in a
-row, before giving up and rescanning. Otherwise it
+row, before giving up and rescanning. A reading more than `APPROACH_MAX_GROWTH`
+times wider than the last one counts as a dropout too: one step cannot grow the
+real cone that much, so it is something else in view. Otherwise it
 turns to face it if `centerX` is more than `APPROACH_REAIM_PX` off, and drives
 straight. The step scales from `APPROACH_STEP_MAX_MM` down to
 `APPROACH_STEP_MIN_MM` as the cone's width nears `APPROACH_TARGET_WIDTH`, which

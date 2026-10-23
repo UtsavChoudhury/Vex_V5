@@ -147,6 +147,7 @@ APPROACH_SPEED = 30              # percent
 APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
 APPROACH_BLIND_STEPS = 3         # misses in a row driven through before rescanning
 APPROACH_BLIND_STEP_MM = 150
+APPROACH_MAX_GROWTH = 2.5        # a step can't grow the cone more than this; bigger is another object
 APPROACH_MIN_GROWTH_PX = 3       # past half target width, less gain per step means touching it
 FINAL_ALIGN_TOLERANCE_PX = 8     # close up the centre jitters, so square up loosely
 VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md

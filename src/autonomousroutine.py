@@ -256,6 +256,7 @@ def approach_cone(first):
     last_drive_width = None
     stalls = 0
     misses = 0
+    seen_width = None
     step = 0
     while True:
         if step == 0:
@@ -266,17 +267,24 @@ def approach_cone(first):
             brain.screen.set_cursor(2 + step % 10, 1)
             brain.screen.clear_line()
             if reading is None:
+                brain.screen.print("%d  not seen" % (step + 1))
+            elif seen_width is not None and reading[2] > seen_width * APPROACH_MAX_GROWTH:
+                brain.screen.print("%d  jump to w %d ignored" % (step + 1, reading[2]))
+                reading = None
+            if reading is None:
                 misses = misses + 1
                 if misses > APPROACH_BLIND_STEPS:
                     brain.screen.print("%d  cone not seen" % (step + 1))
                     approach_report("lost cone")
                     return False
-                brain.screen.print("%d  not seen, blind %d" % (step + 1, APPROACH_BLIND_STEP_MM))
+                brain.screen.set_cursor(2 + step % 10, 30)
+                brain.screen.print("blind %d" % APPROACH_BLIND_STEP_MM)
                 drive(APPROACH_BLIND_STEP_MM, APPROACH_SPEED)
                 step = step + 1
                 continue
             misses = 0
             x, spread, width = reading
+        seen_width = width
         brain.screen.set_cursor(2 + step % 10, 1)
         brain.screen.clear_line()
         error = x - VISION_CENTER_X
