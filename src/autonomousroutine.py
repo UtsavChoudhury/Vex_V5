@@ -232,7 +232,7 @@ def scan_for_cone():
             wait(VISION_LOOP_MS, MSEC)
         brain.screen.set_cursor(2 + step % 10, 1)
         brain.screen.clear_line()
-        brain.screen.print("%3d deg  seen %d/%d  w %d" % (step * SCAN_STEP_DEG % 360, hits, ALIGN_SAMPLES, width))
+        brain.screen.print("look %d  seen %d/%d  w %d" % (step + 1, hits, ALIGN_SAMPLES, width))
         if hits >= SCAN_MIN_HITS:
             return
         turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)

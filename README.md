@@ -78,9 +78,8 @@ Check the cartridge colour matches the `GearSetting`: green `RATIO_18_1`, blue
 overshoots every move by exactly 3×.
 
 Whatever error remains — mostly wheel scrub, which no formula predicts — is
-absorbed by `TURN_SCALE`. Find it with `turn_tuner()`. Hold **L1** on the
-controller while starting the program to get the tuner instead of autonomous. It
-starts at `SCAN_TURN_SPEED`, the speed the cone scan turns at.
+absorbed by `TURN_SCALE`. Find it with `turn_tuner()`, which starts at
+`SCAN_TURN_SPEED`, the speed the cone scan turns at.
 
 1. Put tape on the floor, line the nose up with it.
 2. **A** runs the test spin, **B** spins back.
@@ -150,8 +149,9 @@ in each direction (150 ms), which rides out a dropped frame without lag.
 Autonomous waits `AUTO_START_DELAY_MS` showing live AI Vision status (sensor
 installed, timestamp, code and colour counts, cone position), then `scan_for_cone()` looks, turns
 `SCAN_STEP_DEG` in place at `SCAN_TURN_SPEED`, and looks again, forever until
-the cone is found. It only looks while stopped, because the colour code is unreliable on
-blurred frames mid-turn. A 360 that falls short means `TURN_SCALE` needs tuning.
+the cone is found. It does not track total angle, so `TURN_SCALE` only affects
+how far each step goes. It only looks while stopped, because the colour code is
+unreliable on blurred frames mid-turn.
 Once the cone is seen it runs
 `align_to_cone()`. That step repeats: wait for the robot to settle, take the
 median `centerX` over 7 frames, convert the pixel error to degrees
