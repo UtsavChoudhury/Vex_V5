@@ -116,7 +116,8 @@ unnecessary — turns stop caring about track width and scrub entirely.
 The cone is a colour code: two colours that only match when found adjacent to
 each other, which is exactly the half-yellow half-blue cone. The code drops out
 at range, so `find_cone()` falls back to a yellow blob with a blue blob right
-beside it (`find_color_pair()`). A plain yellow object alone still cannot
+beside it (`find_color_pair()`), merged into one box (`ConeBox`) so width and
+centre cover the whole cone, not just the yellow half. A plain yellow object alone still cannot
 trigger it. Blobs under `VISION_MIN_WIDTH` x `VISION_MIN_HEIGHT` px are ignored;
 a cone across the field is only about 15 px wide.
 
@@ -160,7 +161,10 @@ it re-aims as it goes. It repeats: settle, measure, re-aim if `centerX` is more
 than `APPROACH_REAIM_PX` off, otherwise drive straight. The step scales from
 `APPROACH_STEP_MAX_MM` down to `APPROACH_STEP_MIN_MM` as the cone's width nears
 `APPROACH_TARGET_WIDTH`, which is the "close enough" setting: raise it to stop
-closer. A final `align_to_cone()` squares up at the end. The controller gives
+closer. Past half the target width, a drive step that grows the cone by less
+than `APPROACH_MIN_GROWTH_PX` also ends the approach: the robot is touching or
+pushing it. A final `align_to_cone(FINAL_ALIGN_TOLERANCE_PX)` squares up at the
+end with a looser tolerance, because the centre jitters close up. The controller gives
 three short rumbles when every stage succeeded and one long rumble otherwise.
 
 If it reports `err 0` but the robot is visibly angled, the camera is not on the

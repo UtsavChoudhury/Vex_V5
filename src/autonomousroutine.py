@@ -182,12 +182,12 @@ def measure_cone():
     widths.sort()
     return xs[len(xs) // 2], xs[-1] - xs[0], widths[len(widths) // 2]
 
-def align_to_cone():
+def align_to_cone(tolerance=ALIGN_TOLERANCE_PX):
     """Stop, measure, turn by encoder; repeat until centred. Logs each step from row 5."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("ALIGN  centre %d  tol %d  deg/px %.3f" % (
-        VISION_CENTER_X, ALIGN_TOLERANCE_PX, VISION_DEG_PER_PX))
+        VISION_CENTER_X, tolerance, VISION_DEG_PER_PX))
     for step in range(ALIGN_MAX_STEPS):
         settle(ALIGN_SETTLE_MS)
         reading = measure_cone()
@@ -197,7 +197,7 @@ def align_to_cone():
             return False
         x, spread, width = reading
         error = x - VISION_CENTER_X
-        if abs(error) <= ALIGN_TOLERANCE_PX:
+        if abs(error) <= tolerance:
             brain.screen.print("%d  x %d  err %d  spr %d  w %d  DONE" % (
                 step + 1, x, error, spread, width))
             return True
@@ -244,6 +244,7 @@ def approach_cone():
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print("APPROACH  target w %d" % APPROACH_TARGET_WIDTH)
+    last_drive_width = None
     for step in range(APPROACH_MAX_STEPS):
         settle(ALIGN_SETTLE_MS)
         reading = measure_cone()
@@ -257,6 +258,10 @@ def approach_cone():
         if width >= APPROACH_TARGET_WIDTH:
             brain.screen.print("%d  x %d  w %d  DONE" % (step + 1, x, width))
             return True
+        close = last_drive_width is not None and last_drive_width >= APPROACH_TARGET_WIDTH // 2
+        if close and width < last_drive_width + APPROACH_MIN_GROWTH_PX:
+            brain.screen.print("%d  x %d  w %d  not growing, DONE" % (step + 1, x, width))
+            return True
         if abs(error) > APPROACH_REAIM_PX:
             angle = error * VISION_DEG_PER_PX
             brain.screen.print("%d  x %d  w %d  aim %.1f" % (step + 1, x, width, angle))
@@ -265,6 +270,7 @@ def approach_cone():
         remaining = 1.0 - width / float(APPROACH_TARGET_WIDTH)
         distance = max(APPROACH_STEP_MIN_MM, APPROACH_STEP_MAX_MM * remaining)
         brain.screen.print("%d  x %d  w %d  drive %d" % (step + 1, x, width, distance))
+        last_drive_width = width
         drive(distance, APPROACH_SPEED)
     return False
 
@@ -303,7 +309,7 @@ def autonomous():
         controller.rumble("-")
         return
     align_to_cone()
-    if approach_cone() and align_to_cone():
+    if approach_cone() and align_to_cone(FINAL_ALIGN_TOLERANCE_PX):
         controller.rumble("...")
     else:
         controller.rumble("-")

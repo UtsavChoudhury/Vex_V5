@@ -25,8 +25,16 @@ def find_cone():
         return largest
     return find_color_pair()
 
+class ConeBox:
+    """Bounding box with the AiVisionObject fields the cone code reads."""
+    def __init__(self, left, top, right, bottom):
+        self.width = right - left
+        self.height = bottom - top
+        self.centerX = (left + right) // 2
+        self.centerY = (top + bottom) // 2
+
 def find_color_pair():
-    """Largest yellow blob with a blue blob next to it, for when the code drops out."""
+    """Yellow and blue blobs side by side, merged into one box, for when the code drops out."""
     yellow = None
     blue = None
     for obj in ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS):
@@ -41,7 +49,9 @@ def find_color_pair():
     gap = max(yellow.width, yellow.height, blue.width, blue.height)
     if abs(yellow.centerX - blue.centerX) > gap or abs(yellow.centerY - blue.centerY) > gap:
         return None
-    return yellow
+    return ConeBox(min(yellow.originX, blue.originX), min(yellow.originY, blue.originY),
+                   max(yellow.originX + yellow.width, blue.originX + blue.width),
+                   max(yellow.originY + yellow.height, blue.originY + blue.height))
 
 def find_color(color_id):
     """Return the largest visible object with the requested colour id."""
