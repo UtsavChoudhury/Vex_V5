@@ -36,7 +36,8 @@ TURN_SCALE = 1.00
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
 AUTO_START_DELAY_MS = 5000
-SPIN_AROUND_SPEED = 22    # percent, both sides equal and opposite
+SCAN_STEP_DEG = 45        # under the camera's 74 deg FOV, so views overlap
+SCAN_TURN_SPEED = 25      # percent, both sides equal and opposite
 
 MOTOR_MAX_DPS = 1200.0
 
