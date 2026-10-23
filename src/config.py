@@ -35,6 +35,8 @@ TURN_SCALE = 1.00
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
+AUTO_START_DELAY_MS = 5000
+SPIN_AROUND_SPEED = 75    # percent, both sides equal and opposite
 
 MOTOR_MAX_DPS = 1200.0
 

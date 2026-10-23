@@ -2,7 +2,7 @@
 
 from vex import *
 from config import *
-from vision import search_color_circle, find_cone
+from vision import find_cone
 
 
 # --- Movement ---
@@ -220,7 +220,10 @@ def autonomous():
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     manipulator_init()
-    search_color_circle()
+    wait(AUTO_START_DELAY_MS, MSEC)
+    turn(180, SPIN_AROUND_SPEED)
+    left_motor.stop()
+    right_motor.stop()
     if align_to_cone():
         controller.rumble("...")
     else:

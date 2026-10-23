@@ -42,6 +42,8 @@ TURN_SCALE = 1.00
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
+AUTO_START_DELAY_MS = 5000
+SPIN_AROUND_SPEED = 75    # percent, both sides equal and opposite
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -635,7 +637,10 @@ def autonomous():
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     manipulator_init()
-    search_color_circle()
+    wait(AUTO_START_DELAY_MS, MSEC)
+    turn(180, SPIN_AROUND_SPEED)
+    left_motor.stop()
+    right_motor.stop()
     if align_to_cone():
         controller.rumble("...")
     else:
