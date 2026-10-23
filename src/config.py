@@ -36,8 +36,8 @@ TURN_SCALE = 1.00
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
 AUTO_START_DELAY_MS = 5000
-SCAN_STEP_DEG = 45        # under the camera's 74 deg FOV, so views overlap
-SCAN_TURN_SPEED = 25      # percent, both sides equal and opposite
+SCAN_STEP_DEG = 30        # well under the camera's 74 deg FOV, so the cone is never only at the edge
+SCAN_TURN_SPEED = 50      # percent, both sides equal and opposite
 SCAN_MIN_HITS = 3         # of ALIGN_SAMPLES frames at a stop
 
 MOTOR_MAX_DPS = 1200.0
