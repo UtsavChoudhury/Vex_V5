@@ -305,9 +305,11 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     start_wait_report(AUTO_START_DELAY_MS)
-    scan_for_cone()
-    align_to_cone()
-    if approach_cone() and align_to_cone(FINAL_ALIGN_TOLERANCE_PX):
-        controller.rumble("...")
-    else:
+    while True:
+        scan_for_cone()
+        align_to_cone()
+        if approach_cone():
+            break
         controller.rumble("-")
+    align_to_cone(FINAL_ALIGN_TOLERANCE_PX)
+    controller.rumble("...")

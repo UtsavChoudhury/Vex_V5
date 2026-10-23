@@ -167,7 +167,8 @@ closer. Past half the target width, a drive step that grows the cone by less
 than `APPROACH_MIN_GROWTH_PX` also ends the approach: the robot is touching or
 pushing it. A final `align_to_cone(FINAL_ALIGN_TOLERANCE_PX)` squares up at the
 end with a looser tolerance, because the centre jitters close up. The controller gives
-three short rumbles when every stage succeeded and one long rumble otherwise.
+one long rumble each time it loses the cone and goes back to scanning, and three
+short rumbles once it has reached the cone.
 
 If it reports `err 0` but the robot is visibly angled, the camera is not on the
 robot's centreline. Aim the robot at the cone by hand, read `x` from
