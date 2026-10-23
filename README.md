@@ -55,7 +55,7 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | wait 5 s, spin 180° in place, align to the cone |
+| `autonomous()` | wait 5 s, spin 360° in place, align to the cone |
 | `turn_tuner()` | on-robot turn calibration |
 
 Field control switches between `autonomous()` and `user_control()` at a real
@@ -138,7 +138,7 @@ in each direction (150 ms), which rides out a dropped frame without lag.
 
 ### Aligning to the cone
 
-Autonomous waits `AUTO_START_DELAY_MS`, spins 180° in place at
+Autonomous waits `AUTO_START_DELAY_MS`, spins 360° in place at
 `SPIN_AROUND_SPEED` (both sides equal and opposite), stops, then runs
 `align_to_cone()`. That step repeats: wait for the robot to settle, take the
 median `centerX` over 7 frames, convert the pixel error to degrees

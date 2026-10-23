@@ -221,7 +221,7 @@ def autonomous():
     right_motor.set_stopping(HOLD)
     manipulator_init()
     wait(AUTO_START_DELAY_MS, MSEC)
-    turn(180, SPIN_AROUND_SPEED)
+    turn(360, SPIN_AROUND_SPEED)
     left_motor.stop()
     right_motor.stop()
     if align_to_cone():
