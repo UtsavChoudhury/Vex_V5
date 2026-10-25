@@ -46,8 +46,8 @@ downloadable at a competition). Never edit it; its diffs are noise.
 |------|----------|
 | `src/config.py` | every device object and every tunable constant; `manipulator_init()` |
 | `src/vision.py` | `find_cone`, `cone_detector`, `vision_report` |
-| `src/autonomousroutine.py` | wheel-degree maths, `drive`, `turn`, calibration, `turn_tuner`, `autonomous()` |
-| `src/drivercontrol.py` | `slew`, `turn_taper`, `fit_turn`, `user_control()` |
+| `src/autonomousroutine.py` | wheel-degree maths, `drive`, `turn`, calibration, `turn_tuner`, `square_to_wall`, `autonomous()` |
+| `src/drivercontrol.py` | `slew`, `turn_taper`, `fit_turn`, `cone_assist`, `user_control()` |
 | `src/main.py` | imports the above; `main()` selects the mode |
 | `build.py` | flattens `src/` into `src/download.py` |
 
@@ -109,6 +109,13 @@ other, which is exactly the half-yellow half-blue cone.
 
 `find_cone()` returns the full `AiVisionObject`, so aiming at the cone later is
 the same call — `centerX` under 160 is left of centre in the 320x240 frame.
+
+The only consumer is the driver cone assist; autonomous does not use vision.
+`cone_assist()` must poll for cancel on every pass, so it uses `spin()` with
+live frames rather than the blocking `spin_for` moves autonomous uses. Its start
+button is edge-triggered in `user_control()` and ignored inside the assist until
+released, otherwise the press that starts it would cancel it, and a cancelling
+press of the same arrow would restart it.
 
 ## Gotchas
 

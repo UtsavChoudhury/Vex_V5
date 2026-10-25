@@ -38,9 +38,16 @@ the stick forward.
 |---------|--------|
 | Left stick (axis 3 / 4) | drive and turn |
 | Right stick (axis 2 / 1) | arm and claw |
-| L1 or R1 | boost — full power, bypasses the turn taper |
-| L2 or R2 | crawl — 25% power |
+| R1 | fast — full power, bypasses the turn taper |
+| R2 | slow — 25% power |
 | nothing held | 50% power |
+| Left arrow | cone assist: spin left until the cone is seen, then centre on it |
+| Right arrow | cone assist: spin right until the cone is seen, then centre on it |
+
+While cone assist runs, **any** button or a stick pushed past
+`ASSIST_STICK_CANCEL` stops it and hands control straight back. The controller
+screen shows `searching`, `aligning`, `centred` (two short rumbles) or
+`cancelled`.
 
 Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 
@@ -51,15 +58,38 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | Call | Purpose |
 |------|---------|
 | `cone_detector()` | watch through the AI Vision sensor, announce the cone |
-| `search_color_circle()` | slowly circle until `SEARCH_COLOR_ID` is found |
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | wait 5 s, turn in 15° steps until the cone is found, approach, align |
+| `autonomous()` | square on the wall, lift arm, drive the S→A→B path, release arm |
 | `turn_tuner()` | on-robot turn calibration |
 
 Field control switches between `autonomous()` and `user_control()` at a real
 competition; until then, choose here.
+
+## Autonomous
+
+```
+A - - - B
+|
+|
+S
+```
+
+Start at S with the back bumper towards the wall and the nose pointing at A.
+
+1. `square_to_wall()` backs into the wall at `WALL_SQUARE_SPEED` until both
+   drive motors stall, pushes `WALL_SQUARE_PUSH_MS` longer so both sides seat,
+   then stops. Gives up after `WALL_SQUARE_MAX_MS`.
+2. `lift_arm()` raises the arm `AUTO_ARM_LIFT_DEG` motor degrees and holds.
+3. Drives `AUTO_LEG_MM` (1 m) to A.
+4. Turns `AUTO_TURN_DEG` (90, right) in place.
+5. Drives `AUTO_LEG_MM` to B.
+6. `release_arm()` switches the arm to coast so it drops.
+
+If the arm goes down instead of up in step 2, flip `ARM_INVERT` or make
+`AUTO_ARM_LIFT_DEG` negative. Distances and the 90° depend on `DRIVE_SCALE` and
+`TURN_SCALE`; see below.
 
 ## Turn calibration
 
@@ -79,7 +109,7 @@ overshoots every move by exactly 3×.
 
 Whatever error remains — mostly wheel scrub, which no formula predicts — is
 absorbed by `TURN_SCALE`. Find it with `turn_tuner()`, which starts at
-`SCAN_TURN_SPEED`, the speed the cone scan turns at.
+`AUTO_TURN_SPEED`, the speed autonomous turns at.
 
 1. Put tape on the floor, line the nose up with it.
 2. **A** runs the test spin, **B** spins back.
@@ -122,9 +152,6 @@ centre cover the whole cone, not just the yellow half. A plain yellow object alo
 trigger it. Blobs under `VISION_MIN_WIDTH` x `VISION_MIN_HEIGHT` px are ignored;
 a cone across the field is only about 15 px wide.
 
-`scan_for_cone()` logs one row per stop: the angle, how many of the 7 frames
-saw the cone, and its widest width. It needs `SCAN_MIN_HITS` frames to stop.
-
 | Kind | Index | Name |
 |------|-------|------|
 | colour | 1 | `bluecone` |
@@ -144,45 +171,21 @@ half, then copy the values back into `config.py`.
 and `cone lost` on the way out. Three consecutive agreeing frames are required
 in each direction (150 ms), which rides out a dropped frame without lag.
 
-### Aligning to the cone
+### Cone assist
 
-Autonomous waits `AUTO_START_DELAY_MS` showing live AI Vision status (sensor
-installed, timestamp, code and colour counts, cone position), then `scan_for_cone()` looks, turns
-`SCAN_STEP_DEG` in place at `SCAN_TURN_SPEED`, and looks again, forever until
-the cone is found. It does not track total angle, so `TURN_SCALE` only affects
-how far each step goes. It only looks while stopped, because the colour code is
-unreliable on blurred frames mid-turn.
-Once the cone is seen it runs
-`align_to_cone()`. That step repeats: wait for the robot to settle, take the
-median `centerX` over 7 frames, convert the pixel error to degrees
-(`VISION_DEG_PER_PX`), and turn that far by encoder. It finishes when the error
-is within `ALIGN_TOLERANCE_PX`. Row 5 of the brain screen shows each step.
+`cone_assist()` in `drivercontrol.py` spins at `ASSIST_SEARCH_SPEED` until the
+cone is seen `VISION_CONFIRM_FRAMES` frames in a row, then turns towards it with
+power proportional to the pixel error (`ASSIST_STEER_KP`, clamped between
+`ASSIST_MIN_TURN` and `ASSIST_MAX_TURN`). It stops once `centerX` is within
+`ASSIST_TOLERANCE_PX` for `ASSIST_HOLD_FRAMES` frames. If the cone drops out for
+`ASSIST_LOST_FRAMES` it searches again, turning the way the cone was last seen.
 
-`approach_cone()` runs straight after the scan; it aims as it goes, so there is
-no separate alignment first. Its first step uses the scan's own sighting, so a
-distant cone that only just passed the scan is driven at, not re-checked. After
-that each step settles and measures. If the cone drops out it drives
-`APPROACH_BLIND_STEP_MM` straight on, up to `APPROACH_BLIND_STEPS` times in a
-row, before giving up and rescanning. A reading more than `APPROACH_MAX_GROWTH`
-times wider than the last one counts as a dropout too: one step cannot grow the
-real cone that much, so it is something else in view. Otherwise it
-turns to face it if `centerX` is more than `APPROACH_REAIM_PX` off, and drives
-straight. The step scales from `APPROACH_STEP_MAX_MM` down to
-`APPROACH_STEP_MIN_MM` as the cone's width nears `APPROACH_TARGET_WIDTH`, which
-is the "close enough" setting: raise it to stop closer. Past half the target
-width, two drive steps in a row that grow the cone by less than
-`APPROACH_MIN_GROWTH_PX` also end the approach: the robot is touching or pushing
-it. The reason it ended is shown on the controller screen. A final `align_to_cone(FINAL_ALIGN_TOLERANCE_PX)` squares up at the
-end with a looser tolerance, because the centre jitters close up. The controller gives
-one long rumble each time it loses the cone and goes back to scanning, and three
-short rumbles once it has reached the cone.
+If it oscillates either side of the cone, lower `ASSIST_STEER_KP` or
+`ASSIST_MAX_TURN`. If it stalls just short of centre, raise `ASSIST_MIN_TURN`.
 
-If it reports `err 0` but the robot is visibly angled, the camera is not on the
+If it reports centred but the robot is visibly angled, the camera is not on the
 robot's centreline. Aim the robot at the cone by hand, read `x` from
 `vision_report()`, and put that number in `VISION_CENTER_X`.
-
-If each step overshoots (the error flips sign), lower `VISION_DEG_PER_PX`. If
-it creeps towards centre over many steps, raise it.
 
 ### Nothing happens at all
 
