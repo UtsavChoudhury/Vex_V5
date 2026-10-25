@@ -35,10 +35,17 @@ TURN_SCALE = 1.00
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
-AUTO_START_DELAY_MS = 5000
-SCAN_STEP_DEG = 15        # well under the camera's 74 deg FOV, so the cone is never only at the edge
-SCAN_TURN_SPEED = 50      # percent, both sides equal and opposite
-SCAN_MIN_HITS = 3         # of ALIGN_SAMPLES frames at a stop
+AUTO_LEG_MM = 1000        # S->A and A->B
+AUTO_TURN_DEG = 90        # positive = right
+
+WALL_SQUARE_SPEED = 30    # percent, backing into the wall
+WALL_SQUARE_MIN_MS = 400  # before checking for a stall
+WALL_SQUARE_PUSH_MS = 300 # keep pushing once stopped, so both sides seat
+WALL_SQUARE_MAX_MS = 2500
+WALL_STALL_PCT = 5        # both sides below this velocity = against the wall
+
+AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
+AUTO_ARM_SPEED = 40
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -67,8 +74,8 @@ LOOP_MS = 20
 
 DEADBAND = 2
 
-SPEED_BOOST = 1.00   # L1/R1 held
-SPEED_CRAWL = 0.25   # L2/R2 held
+SPEED_BOOST = 1.00   # R1 held
+SPEED_CRAWL = 0.25   # R2 held
 SPEED_NORMAL = 0.50  # nothing held
 
 TURN_NORMAL = 0.8
@@ -129,34 +136,17 @@ AI_VISION_PORT = Ports.PORT4     # <-- set to the port the sensor is plugged int
 BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
 YELLOW_CONE_ID = 2               # colour "yellowcone"
 CONE_CODE_ID = 1                 # colour code "cone"
-SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
-SEARCH_INNER_POWER = 5
-SEARCH_OUTER_POWER = 10
 VISION_CENTER_X = 164            # centerX when the cone is dead ahead; shift if camera is off-centre
-APPROACH_FORWARD_POWER = 25      # forward power when the cone is far
-APPROACH_MIN_FORWARD = 8         # forward power as the cone fills the frame
-APPROACH_STEER_KP = 0.12         # turn power per pixel of error
-APPROACH_MIN_TURN = 4            # smallest turn power that actually moves the robot
-APPROACH_MAX_TURN = 15
-APPROACH_DRIVE_ERROR = 40        # beyond this many px, turn in place instead of driving
-APPROACH_CENTER_TOLERANCE = 3
-APPROACH_TARGET_WIDTH = 240      # cone width in px that counts as close enough
-APPROACH_STEP_MAX_MM = 400       # step when the cone is tiny
-APPROACH_STEP_MIN_MM = 40        # step when nearly there
-APPROACH_SPEED = 30              # percent
-APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
-APPROACH_BLIND_STEPS = 3         # misses in a row driven through before rescanning
-APPROACH_BLIND_STEP_MM = 150
-APPROACH_MAX_GROWTH = 2.5        # a step can't grow the cone more than this; bigger is another object
-APPROACH_MIN_GROWTH_PX = 3       # past half target width, less gain per step means touching it
-FINAL_ALIGN_TOLERANCE_PX = 8     # close up the centre jitters, so square up loosely
-VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
-ALIGN_TOLERANCE_PX = 2           # final aim accuracy, about half a degree
-ALIGN_SAMPLES = 7                # frames per median measurement
-ALIGN_SETTLE_MS = 250            # let the robot stop rocking before measuring
-ALIGN_MIN_TURN_DEG = 0.5
-ALIGN_MAX_STEPS = 8
-ALIGN_TURN_SPEED = 10
+
+# Driver cone assist: spin until the cone is seen, then centre on it.
+ASSIST_SEARCH_SPEED = 15         # percent while looking; slow so frames aren't blurred
+ASSIST_STEER_KP = 0.12           # turn power per pixel of error
+ASSIST_MIN_TURN = 4              # smallest turn power that actually moves the robot
+ASSIST_MAX_TURN = 15
+ASSIST_TOLERANCE_PX = 4
+ASSIST_HOLD_FRAMES = 3           # centred this many frames in a row = done
+ASSIST_LOST_FRAMES = 5           # misses in a row before searching again
+ASSIST_STICK_CANCEL = 20         # stick past this cancels, as any button does
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.

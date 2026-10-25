@@ -2,7 +2,6 @@
 
 from vex import *
 from config import *
-from vision import find_cone
 
 
 # --- Movement ---
@@ -84,7 +83,7 @@ def turn_tuner():
     global TURN_SCALE
 
     spins = 1
-    speed = SCAN_TURN_SPEED
+    speed = AUTO_TURN_SPEED
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     tuner_screen(spins, speed)
@@ -164,188 +163,46 @@ def run_path(path):
             wait(step[1], MSEC)
 
 
-# --- Cone alignment ---
-
-def measure_cone():
-    """Median centerX, x spread and median width over stationary frames, or None."""
-    xs = []
-    widths = []
-    for i in range(ALIGN_SAMPLES):
-        target = find_cone()
-        if target is not None:
-            xs.append(target.centerX)
-            widths.append(target.width)
-        wait(VISION_LOOP_MS, MSEC)
-    if len(xs) < SCAN_MIN_HITS:
-        return None
-    xs.sort()
-    widths.sort()
-    return xs[len(xs) // 2], xs[-1] - xs[0], widths[len(widths) // 2]
-
-def align_to_cone(tolerance=ALIGN_TOLERANCE_PX):
-    """Stop, measure, turn by encoder; repeat until centred. Logs each step from row 5."""
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("ALIGN  centre %d  tol %d  deg/px %.3f" % (
-        VISION_CENTER_X, tolerance, VISION_DEG_PER_PX))
-    for step in range(ALIGN_MAX_STEPS):
-        settle(ALIGN_SETTLE_MS)
-        reading = measure_cone()
-        brain.screen.set_cursor(step + 3, 1)
-        if reading is None:
-            brain.screen.print("%d  cone not seen" % (step + 1))
-            return False
-        x, spread, width = reading
-        error = x - VISION_CENTER_X
-        if abs(error) <= tolerance:
-            brain.screen.print("%d  x %d  err %d  spr %d  w %d  DONE" % (
-                step + 1, x, error, spread, width))
-            return True
-        angle = error * VISION_DEG_PER_PX
-        if abs(angle) < ALIGN_MIN_TURN_DEG:
-            angle = ALIGN_MIN_TURN_DEG if angle > 0 else -ALIGN_MIN_TURN_DEG
-        start_left = left_motor.position(DEGREES)
-        turn(angle, ALIGN_TURN_SPEED)
-        moved = left_motor.position(DEGREES) - start_left
-        brain.screen.print("%d  x %d  err %d  spr %d  w %d  t %.1f  mv %.1f" % (
-            step + 1, x, error, spread, width, angle, moved))
-    brain.screen.set_cursor(ALIGN_MAX_STEPS + 3, 1)
-    brain.screen.print("gave up")
-    return False
-
-
-def scan_for_cone():
-    """Turn in SCAN_STEP_DEG steps, looking only while stopped; returns (x, width) once found."""
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("SCAN  need %d/%d  min %dpx" % (SCAN_MIN_HITS, ALIGN_SAMPLES, VISION_MIN_WIDTH))
-    step = 0
-    while True:
-        settle(ALIGN_SETTLE_MS)
-        hits = 0
-        width = 0
-        xs = []
-        for i in range(ALIGN_SAMPLES):
-            target = find_cone()
-            if target is not None:
-                hits = hits + 1
-                width = max(width, target.width)
-                xs.append(target.centerX)
-            wait(VISION_LOOP_MS, MSEC)
-        brain.screen.set_cursor(2 + step % 10, 1)
-        brain.screen.clear_line()
-        brain.screen.print("look %d  seen %d/%d  w %d" % (step + 1, hits, ALIGN_SAMPLES, width))
-        if hits >= SCAN_MIN_HITS:
-            xs.sort()
-            return xs[len(xs) // 2], width
-        turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)
-        step = step + 1
-
-
-def approach_report(text):
-    """Why the approach ended, on the controller so the brain's final align can't clear it."""
-    controller.screen.clear_screen()
-    controller.screen.set_cursor(1, 1)
-    controller.screen.print(text)
-
-def approach_cone(first):
-    """Aim and drive in shrinking steps until close; drives blind a few steps if the cone drops out."""
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("APPROACH  target w %d" % APPROACH_TARGET_WIDTH)
-    last_drive_width = None
-    stalls = 0
-    misses = 0
-    seen_width = None
-    step = 0
-    while True:
-        if step == 0:
-            x, width = first
-        else:
-            settle(ALIGN_SETTLE_MS)
-            reading = measure_cone()
-            brain.screen.set_cursor(2 + step % 10, 1)
-            brain.screen.clear_line()
-            if reading is None:
-                brain.screen.print("%d  not seen" % (step + 1))
-            elif seen_width is not None and reading[2] > seen_width * APPROACH_MAX_GROWTH:
-                brain.screen.print("%d  jump to w %d ignored" % (step + 1, reading[2]))
-                reading = None
-            if reading is None:
-                misses = misses + 1
-                if misses > APPROACH_BLIND_STEPS:
-                    brain.screen.print("%d  cone not seen" % (step + 1))
-                    approach_report("lost cone")
-                    return False
-                brain.screen.set_cursor(2 + step % 10, 30)
-                brain.screen.print("blind %d" % APPROACH_BLIND_STEP_MM)
-                drive(APPROACH_BLIND_STEP_MM, APPROACH_SPEED)
-                step = step + 1
-                continue
-            misses = 0
-            x, spread, width = reading
-        seen_width = width
-        brain.screen.set_cursor(2 + step % 10, 1)
-        brain.screen.clear_line()
-        error = x - VISION_CENTER_X
-        if width >= APPROACH_TARGET_WIDTH:
-            brain.screen.print("%d  x %d  w %d  DONE" % (step + 1, x, width))
-            approach_report("close w %d" % width)
-            return True
-        close = last_drive_width is not None and last_drive_width >= APPROACH_TARGET_WIDTH // 2
-        if close and width < last_drive_width + APPROACH_MIN_GROWTH_PX:
-            stalls = stalls + 1
-            if stalls >= 2:
-                brain.screen.print("%d  x %d  w %d  not growing, DONE" % (step + 1, x, width))
-                approach_report("touching w %d" % width)
-                return True
-        else:
-            stalls = 0
-        angle = 0.0
-        if abs(error) > APPROACH_REAIM_PX:
-            angle = error * VISION_DEG_PER_PX
-            turn(angle, ALIGN_TURN_SPEED)
-        remaining = 1.0 - width / float(APPROACH_TARGET_WIDTH)
-        distance = max(APPROACH_STEP_MIN_MM, APPROACH_STEP_MAX_MM * remaining)
-        brain.screen.print("%d  x %d  w %d  aim %.1f  drive %d" % (step + 1, x, width, angle, distance))
-        last_drive_width = width
-        drive(distance, APPROACH_SPEED)
-        step = step + 1
-
-
-def start_wait_report(ms):
-    """Wait out the start delay showing live AI Vision status, so a dead sensor shows up."""
-    brain.screen.clear_screen()
-    end = brain.timer.time(MSEC) + ms
-    while brain.timer.time(MSEC) < end:
-        codes = ai_vision.take_snapshot(AiVision.ALL_CODES, VISION_MAX_OBJECTS)
-        colors = ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS)
-        cone = find_cone()
-        brain.screen.clear_line(1)
-        brain.screen.set_cursor(1, 1)
-        brain.screen.print("START  installed %s  stamp %d" % (ai_vision.installed(), ai_vision.timestamp()))
-        brain.screen.clear_line(2)
-        brain.screen.set_cursor(2, 1)
-        brain.screen.print("codes %d  colours %d" % (len(codes), len(colors)))
-        brain.screen.clear_line(3)
-        brain.screen.set_cursor(3, 1)
-        if cone is not None:
-            brain.screen.print("cone x %d y %d  %dx%d" % (cone.centerX, cone.centerY, cone.width, cone.height))
-        else:
-            brain.screen.print("cone none")
-        wait(250, MSEC)
-
-
 # --- Routine ---
 
-def autonomous():
+def square_to_wall():
+    """Back into the wall until both sides stall, push a moment longer, then stop."""
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
-    manipulator_init()
-    start_wait_report(AUTO_START_DELAY_MS)
-    while True:
-        if approach_cone(scan_for_cone()):
+    left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
+    right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
+    start = brain.timer.time(MSEC)
+    while brain.timer.time(MSEC) - start < WALL_SQUARE_MAX_MS:
+        wait(20, MSEC)
+        if brain.timer.time(MSEC) - start < WALL_SQUARE_MIN_MS:
+            continue
+        if (abs(left_motor.velocity(PERCENT)) < WALL_STALL_PCT and
+                abs(right_motor.velocity(PERCENT)) < WALL_STALL_PCT):
+            wait(WALL_SQUARE_PUSH_MS, MSEC)
             break
-        controller.rumble("-")
-    align_to_cone(FINAL_ALIGN_TOLERANCE_PX)
-    controller.rumble("...")
+    left_motor.stop()
+    right_motor.stop()
+
+def lift_arm(degrees=AUTO_ARM_LIFT_DEG, speed=AUTO_ARM_SPEED):
+    """Raise the arm by motor degrees and hold it there."""
+    arm_motor.set_stopping(HOLD)
+    arm_motor.spin_for(FORWARD, degrees, DEGREES, speed, PERCENT)
+
+def release_arm():
+    """Stop holding the arm so it drops."""
+    arm_motor.set_stopping(COAST)
+    arm_motor.stop()
+
+def autonomous():
+    """S -> wall square -> lift arm -> A -> turn right -> B -> release arm. See README.md."""
+    manipulator_init()
+    square_to_wall()
+    settle()
+    lift_arm()
+    drive(AUTO_LEG_MM)
+    settle()
+    turn(AUTO_TURN_DEG)
+    settle()
+    drive(AUTO_LEG_MM)
+    settle()
+    release_arm()

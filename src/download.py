@@ -42,10 +42,17 @@ TURN_SCALE = 1.00
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
-AUTO_START_DELAY_MS = 5000
-SCAN_STEP_DEG = 15        # well under the camera's 74 deg FOV, so the cone is never only at the edge
-SCAN_TURN_SPEED = 50      # percent, both sides equal and opposite
-SCAN_MIN_HITS = 3         # of ALIGN_SAMPLES frames at a stop
+AUTO_LEG_MM = 1000        # S->A and A->B
+AUTO_TURN_DEG = 90        # positive = right
+
+WALL_SQUARE_SPEED = 30    # percent, backing into the wall
+WALL_SQUARE_MIN_MS = 400  # before checking for a stall
+WALL_SQUARE_PUSH_MS = 300 # keep pushing once stopped, so both sides seat
+WALL_SQUARE_MAX_MS = 2500
+WALL_STALL_PCT = 5        # both sides below this velocity = against the wall
+
+AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
+AUTO_ARM_SPEED = 40
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -74,8 +81,8 @@ LOOP_MS = 20
 
 DEADBAND = 2
 
-SPEED_BOOST = 1.00   # L1/R1 held
-SPEED_CRAWL = 0.25   # L2/R2 held
+SPEED_BOOST = 1.00   # R1 held
+SPEED_CRAWL = 0.25   # R2 held
 SPEED_NORMAL = 0.50  # nothing held
 
 TURN_NORMAL = 0.8
@@ -136,34 +143,17 @@ AI_VISION_PORT = Ports.PORT4     # <-- set to the port the sensor is plugged int
 BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
 YELLOW_CONE_ID = 2               # colour "yellowcone"
 CONE_CODE_ID = 1                 # colour code "cone"
-SEARCH_COLOR_ID = YELLOW_CONE_ID # colour to find while circling
-SEARCH_INNER_POWER = 5
-SEARCH_OUTER_POWER = 10
 VISION_CENTER_X = 164            # centerX when the cone is dead ahead; shift if camera is off-centre
-APPROACH_FORWARD_POWER = 25      # forward power when the cone is far
-APPROACH_MIN_FORWARD = 8         # forward power as the cone fills the frame
-APPROACH_STEER_KP = 0.12         # turn power per pixel of error
-APPROACH_MIN_TURN = 4            # smallest turn power that actually moves the robot
-APPROACH_MAX_TURN = 15
-APPROACH_DRIVE_ERROR = 40        # beyond this many px, turn in place instead of driving
-APPROACH_CENTER_TOLERANCE = 3
-APPROACH_TARGET_WIDTH = 240      # cone width in px that counts as close enough
-APPROACH_STEP_MAX_MM = 400       # step when the cone is tiny
-APPROACH_STEP_MIN_MM = 40        # step when nearly there
-APPROACH_SPEED = 30              # percent
-APPROACH_REAIM_PX = 8            # re-aim before stepping if further off than this
-APPROACH_BLIND_STEPS = 3         # misses in a row driven through before rescanning
-APPROACH_BLIND_STEP_MM = 150
-APPROACH_MAX_GROWTH = 2.5        # a step can't grow the cone more than this; bigger is another object
-APPROACH_MIN_GROWTH_PX = 3       # past half target width, less gain per step means touching it
-FINAL_ALIGN_TOLERANCE_PX = 8     # close up the centre jitters, so square up loosely
-VISION_DEG_PER_PX = 74.0 / 320  # horizontal FOV over frame width; see README.md
-ALIGN_TOLERANCE_PX = 2           # final aim accuracy, about half a degree
-ALIGN_SAMPLES = 7                # frames per median measurement
-ALIGN_SETTLE_MS = 250            # let the robot stop rocking before measuring
-ALIGN_MIN_TURN_DEG = 0.5
-ALIGN_MAX_STEPS = 8
-ALIGN_TURN_SPEED = 10
+
+# Driver cone assist: spin until the cone is seen, then centre on it.
+ASSIST_SEARCH_SPEED = 15         # percent while looking; slow so frames aren't blurred
+ASSIST_STEER_KP = 0.12           # turn power per pixel of error
+ASSIST_MIN_TURN = 4              # smallest turn power that actually moves the robot
+ASSIST_MAX_TURN = 15
+ASSIST_TOLERANCE_PX = 4
+ASSIST_HOLD_FRAMES = 3           # centred this many frames in a row = done
+ASSIST_LOST_FRAMES = 5           # misses in a row before searching again
+ASSIST_STICK_CANCEL = 20         # stick past this cancels, as any button does
 
 # RGB sampled from the utility swatches; hue and saturation ranges as set there.
 # Declared here rather than relied on from the sensor -- see AGENTS.md.
@@ -250,98 +240,6 @@ def find_color_pair():
     top = min(yellow.centerY - yellow.height // 2, blue.centerY - blue.height // 2)
     bottom = max(yellow.centerY + yellow.height // 2, blue.centerY + blue.height // 2)
     return ConeBox(left, top, right, bottom)
-
-def find_color(color_id):
-    """Return the largest visible object with the requested colour id."""
-    largest = None
-    largest_area = 0
-
-    for obj in ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS):
-        if obj.id != color_id:
-            continue
-        if obj.width < VISION_MIN_WIDTH or obj.height < VISION_MIN_HEIGHT:
-            continue
-        area = obj.width * obj.height
-        if area > largest_area:
-            largest = obj
-            largest_area = area
-
-    return largest
-
-def search_color_circle():
-    """Find, center on, and approach the cone color code."""
-    left_motor.set_stopping(BRAKE)
-    right_motor.set_stopping(BRAKE)
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("searching for cone")
-
-    hits = 0
-    while True:
-        target = find_cone()
-        if target is not None:
-            hits = hits + 1
-        else:
-            hits = 0
-
-        if target is not None and hits >= VISION_CONFIRM_FRAMES:
-            break
-
-        left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
-        right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
-        wait(VISION_LOOP_MS, MSEC)
-
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("centering on cone")
-
-    while True:
-        target = find_cone()
-        if target is None:
-            left_motor.stop()
-            right_motor.stop()
-            brain.screen.set_cursor(3, 1)
-            brain.screen.print("cone lost - searching")
-            reacquire_cone()
-            continue
-
-        if target.width >= APPROACH_TARGET_WIDTH:
-            break
-
-        error = target.centerX - VISION_CENTER_X
-        steer = steer_power(error)
-        if abs(error) > APPROACH_DRIVE_ERROR:
-            forward = 0
-        else:
-            closeness = min(1.0, target.width / float(APPROACH_TARGET_WIDTH))
-            forward = APPROACH_FORWARD_POWER - (APPROACH_FORWARD_POWER - APPROACH_MIN_FORWARD) * closeness
-        left_motor.spin(FORWARD, forward + steer, PERCENT)
-        right_motor.spin(FORWARD, forward - steer, PERCENT)
-        wait(VISION_LOOP_MS, MSEC)
-
-    left_motor.stop()
-    right_motor.stop()
-
-def steer_power(error):
-    """Proportional turn power for a centerX error, with a floor to beat friction."""
-    if abs(error) <= APPROACH_CENTER_TOLERANCE:
-        return 0
-    power = APPROACH_STEER_KP * error
-    if abs(power) < APPROACH_MIN_TURN:
-        power = APPROACH_MIN_TURN if error > 0 else -APPROACH_MIN_TURN
-    return max(-APPROACH_MAX_TURN, min(APPROACH_MAX_TURN, power))
-
-def reacquire_cone():
-    """Circle until the cone is seen for several frames in a row."""
-    hits = 0
-    while hits < VISION_CONFIRM_FRAMES:
-        if find_cone() is not None:
-            hits = hits + 1
-        else:
-            hits = 0
-        left_motor.spin(FORWARD, SEARCH_INNER_POWER, PERCENT)
-        right_motor.spin(FORWARD, SEARCH_OUTER_POWER, PERCENT)
-        wait(VISION_LOOP_MS, MSEC)
 
 def cone_detector():
     """Watch continuously and announce the cone each time it comes into view."""
@@ -544,7 +442,7 @@ def turn_tuner():
     global TURN_SCALE
 
     spins = 1
-    speed = SCAN_TURN_SPEED
+    speed = AUTO_TURN_SPEED
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     tuner_screen(spins, speed)
@@ -624,196 +522,54 @@ def run_path(path):
             wait(step[1], MSEC)
 
 
-# --- Cone alignment ---
-
-def measure_cone():
-    """Median centerX, x spread and median width over stationary frames, or None."""
-    xs = []
-    widths = []
-    for i in range(ALIGN_SAMPLES):
-        target = find_cone()
-        if target is not None:
-            xs.append(target.centerX)
-            widths.append(target.width)
-        wait(VISION_LOOP_MS, MSEC)
-    if len(xs) < SCAN_MIN_HITS:
-        return None
-    xs.sort()
-    widths.sort()
-    return xs[len(xs) // 2], xs[-1] - xs[0], widths[len(widths) // 2]
-
-def align_to_cone(tolerance=ALIGN_TOLERANCE_PX):
-    """Stop, measure, turn by encoder; repeat until centred. Logs each step from row 5."""
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("ALIGN  centre %d  tol %d  deg/px %.3f" % (
-        VISION_CENTER_X, tolerance, VISION_DEG_PER_PX))
-    for step in range(ALIGN_MAX_STEPS):
-        settle(ALIGN_SETTLE_MS)
-        reading = measure_cone()
-        brain.screen.set_cursor(step + 3, 1)
-        if reading is None:
-            brain.screen.print("%d  cone not seen" % (step + 1))
-            return False
-        x, spread, width = reading
-        error = x - VISION_CENTER_X
-        if abs(error) <= tolerance:
-            brain.screen.print("%d  x %d  err %d  spr %d  w %d  DONE" % (
-                step + 1, x, error, spread, width))
-            return True
-        angle = error * VISION_DEG_PER_PX
-        if abs(angle) < ALIGN_MIN_TURN_DEG:
-            angle = ALIGN_MIN_TURN_DEG if angle > 0 else -ALIGN_MIN_TURN_DEG
-        start_left = left_motor.position(DEGREES)
-        turn(angle, ALIGN_TURN_SPEED)
-        moved = left_motor.position(DEGREES) - start_left
-        brain.screen.print("%d  x %d  err %d  spr %d  w %d  t %.1f  mv %.1f" % (
-            step + 1, x, error, spread, width, angle, moved))
-    brain.screen.set_cursor(ALIGN_MAX_STEPS + 3, 1)
-    brain.screen.print("gave up")
-    return False
-
-
-def scan_for_cone():
-    """Turn in SCAN_STEP_DEG steps, looking only while stopped; returns (x, width) once found."""
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("SCAN  need %d/%d  min %dpx" % (SCAN_MIN_HITS, ALIGN_SAMPLES, VISION_MIN_WIDTH))
-    step = 0
-    while True:
-        settle(ALIGN_SETTLE_MS)
-        hits = 0
-        width = 0
-        xs = []
-        for i in range(ALIGN_SAMPLES):
-            target = find_cone()
-            if target is not None:
-                hits = hits + 1
-                width = max(width, target.width)
-                xs.append(target.centerX)
-            wait(VISION_LOOP_MS, MSEC)
-        brain.screen.set_cursor(2 + step % 10, 1)
-        brain.screen.clear_line()
-        brain.screen.print("look %d  seen %d/%d  w %d" % (step + 1, hits, ALIGN_SAMPLES, width))
-        if hits >= SCAN_MIN_HITS:
-            xs.sort()
-            return xs[len(xs) // 2], width
-        turn(SCAN_STEP_DEG, SCAN_TURN_SPEED)
-        step = step + 1
-
-
-def approach_report(text):
-    """Why the approach ended, on the controller so the brain's final align can't clear it."""
-    controller.screen.clear_screen()
-    controller.screen.set_cursor(1, 1)
-    controller.screen.print(text)
-
-def approach_cone(first):
-    """Aim and drive in shrinking steps until close; drives blind a few steps if the cone drops out."""
-    brain.screen.clear_screen()
-    brain.screen.set_cursor(1, 1)
-    brain.screen.print("APPROACH  target w %d" % APPROACH_TARGET_WIDTH)
-    last_drive_width = None
-    stalls = 0
-    misses = 0
-    seen_width = None
-    step = 0
-    while True:
-        if step == 0:
-            x, width = first
-        else:
-            settle(ALIGN_SETTLE_MS)
-            reading = measure_cone()
-            brain.screen.set_cursor(2 + step % 10, 1)
-            brain.screen.clear_line()
-            if reading is None:
-                brain.screen.print("%d  not seen" % (step + 1))
-            elif seen_width is not None and reading[2] > seen_width * APPROACH_MAX_GROWTH:
-                brain.screen.print("%d  jump to w %d ignored" % (step + 1, reading[2]))
-                reading = None
-            if reading is None:
-                misses = misses + 1
-                if misses > APPROACH_BLIND_STEPS:
-                    brain.screen.print("%d  cone not seen" % (step + 1))
-                    approach_report("lost cone")
-                    return False
-                brain.screen.set_cursor(2 + step % 10, 30)
-                brain.screen.print("blind %d" % APPROACH_BLIND_STEP_MM)
-                drive(APPROACH_BLIND_STEP_MM, APPROACH_SPEED)
-                step = step + 1
-                continue
-            misses = 0
-            x, spread, width = reading
-        seen_width = width
-        brain.screen.set_cursor(2 + step % 10, 1)
-        brain.screen.clear_line()
-        error = x - VISION_CENTER_X
-        if width >= APPROACH_TARGET_WIDTH:
-            brain.screen.print("%d  x %d  w %d  DONE" % (step + 1, x, width))
-            approach_report("close w %d" % width)
-            return True
-        close = last_drive_width is not None and last_drive_width >= APPROACH_TARGET_WIDTH // 2
-        if close and width < last_drive_width + APPROACH_MIN_GROWTH_PX:
-            stalls = stalls + 1
-            if stalls >= 2:
-                brain.screen.print("%d  x %d  w %d  not growing, DONE" % (step + 1, x, width))
-                approach_report("touching w %d" % width)
-                return True
-        else:
-            stalls = 0
-        angle = 0.0
-        if abs(error) > APPROACH_REAIM_PX:
-            angle = error * VISION_DEG_PER_PX
-            turn(angle, ALIGN_TURN_SPEED)
-        remaining = 1.0 - width / float(APPROACH_TARGET_WIDTH)
-        distance = max(APPROACH_STEP_MIN_MM, APPROACH_STEP_MAX_MM * remaining)
-        brain.screen.print("%d  x %d  w %d  aim %.1f  drive %d" % (step + 1, x, width, angle, distance))
-        last_drive_width = width
-        drive(distance, APPROACH_SPEED)
-        step = step + 1
-
-
-def start_wait_report(ms):
-    """Wait out the start delay showing live AI Vision status, so a dead sensor shows up."""
-    brain.screen.clear_screen()
-    end = brain.timer.time(MSEC) + ms
-    while brain.timer.time(MSEC) < end:
-        codes = ai_vision.take_snapshot(AiVision.ALL_CODES, VISION_MAX_OBJECTS)
-        colors = ai_vision.take_snapshot(AiVision.ALL_COLORS, VISION_MAX_OBJECTS)
-        cone = find_cone()
-        brain.screen.clear_line(1)
-        brain.screen.set_cursor(1, 1)
-        brain.screen.print("START  installed %s  stamp %d" % (ai_vision.installed(), ai_vision.timestamp()))
-        brain.screen.clear_line(2)
-        brain.screen.set_cursor(2, 1)
-        brain.screen.print("codes %d  colours %d" % (len(codes), len(colors)))
-        brain.screen.clear_line(3)
-        brain.screen.set_cursor(3, 1)
-        if cone is not None:
-            brain.screen.print("cone x %d y %d  %dx%d" % (cone.centerX, cone.centerY, cone.width, cone.height))
-        else:
-            brain.screen.print("cone none")
-        wait(250, MSEC)
-
-
 # --- Routine ---
 
-def autonomous():
+def square_to_wall():
+    """Back into the wall until both sides stall, push a moment longer, then stop."""
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
-    manipulator_init()
-    start_wait_report(AUTO_START_DELAY_MS)
-    while True:
-        if approach_cone(scan_for_cone()):
+    left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
+    right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
+    start = brain.timer.time(MSEC)
+    while brain.timer.time(MSEC) - start < WALL_SQUARE_MAX_MS:
+        wait(20, MSEC)
+        if brain.timer.time(MSEC) - start < WALL_SQUARE_MIN_MS:
+            continue
+        if (abs(left_motor.velocity(PERCENT)) < WALL_STALL_PCT and
+                abs(right_motor.velocity(PERCENT)) < WALL_STALL_PCT):
+            wait(WALL_SQUARE_PUSH_MS, MSEC)
             break
-        controller.rumble("-")
-    align_to_cone(FINAL_ALIGN_TOLERANCE_PX)
-    controller.rumble("...")
+    left_motor.stop()
+    right_motor.stop()
+
+def lift_arm(degrees=AUTO_ARM_LIFT_DEG, speed=AUTO_ARM_SPEED):
+    """Raise the arm by motor degrees and hold it there."""
+    arm_motor.set_stopping(HOLD)
+    arm_motor.spin_for(FORWARD, degrees, DEGREES, speed, PERCENT)
+
+def release_arm():
+    """Stop holding the arm so it drops."""
+    arm_motor.set_stopping(COAST)
+    arm_motor.stop()
+
+def autonomous():
+    """S -> wall square -> lift arm -> A -> turn right -> B -> release arm. See README.md."""
+    manipulator_init()
+    square_to_wall()
+    settle()
+    lift_arm()
+    drive(AUTO_LEG_MM)
+    settle()
+    turn(AUTO_TURN_DEG)
+    settle()
+    drive(AUTO_LEG_MM)
+    settle()
+    release_arm()
 
 
 # ======================== drivercontrol.py ========================
 
-# drivercontrol.py -- arcade drive, slew limiting, manipulator.
+# drivercontrol.py -- arcade drive, slew limiting, manipulator, cone assist.
 
 
 
@@ -870,6 +626,97 @@ def show_claw_diagnostic(stick, power):
         brain.screen.print("amps n/a on this SDK")
 
 
+# --- Cone assist ---
+
+BUTTON_NAMES = ["buttonL1", "buttonL2", "buttonR1", "buttonR2", "buttonUp", "buttonDown",
+                "buttonLeft", "buttonRight", "buttonA", "buttonB", "buttonX", "buttonY"]
+
+def sticks_moved():
+    return (abs(controller.axis1.position()) > ASSIST_STICK_CANCEL or
+            abs(controller.axis2.position()) > ASSIST_STICK_CANCEL or
+            abs(controller.axis3.position()) > ASSIST_STICK_CANCEL or
+            abs(controller.axis4.position()) > ASSIST_STICK_CANCEL)
+
+def spin_in_place(power):
+    """Positive = right."""
+    left_motor.spin(FORWARD, power, PERCENT)
+    right_motor.spin(FORWARD, -power, PERCENT)
+
+def assist_steer(error):
+    """Proportional turn power for a centerX error, with a floor to beat friction."""
+    power = ASSIST_STEER_KP * error
+    if abs(power) < ASSIST_MIN_TURN:
+        power = ASSIST_MIN_TURN if error > 0 else -ASSIST_MIN_TURN
+    return max(-ASSIST_MAX_TURN, min(ASSIST_MAX_TURN, power))
+
+def assist_report(text):
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print(text)
+
+def cone_assist(direction, start_name):
+    """Spin `direction` (1 right, -1 left) until the cone is seen, then centre; any input cancels."""
+    arm_motor.stop()
+    claw_motor.stop()
+    assist_report("cone: searching")
+    released = False
+    hits = 0
+    misses = 0
+    centred = 0
+    found = False
+    while True:
+        if not getattr(controller, start_name).pressing():
+            released = True
+        for name in BUTTON_NAMES:
+            if getattr(controller, name).pressing() and (name != start_name or released):
+                left_motor.stop()
+                right_motor.stop()
+                assist_report("cone: cancelled")
+                return False
+        if sticks_moved():
+            left_motor.stop()
+            right_motor.stop()
+            assist_report("cone: cancelled")
+            return False
+
+        cone = find_cone()
+        if cone is None:
+            hits = 0
+            centred = 0
+            misses = misses + 1
+            if found and misses >= ASSIST_LOST_FRAMES:
+                found = False
+                assist_report("cone: searching")
+        else:
+            misses = 0
+            hits = hits + 1
+            if not found and hits >= VISION_CONFIRM_FRAMES:
+                found = True
+                assist_report("cone: aligning")
+
+        if found and cone is not None:
+            error = cone.centerX - VISION_CENTER_X
+            direction = 1 if error > 0 else -1
+            if abs(error) <= ASSIST_TOLERANCE_PX:
+                centred = centred + 1
+                left_motor.stop()
+                right_motor.stop()
+                if centred >= ASSIST_HOLD_FRAMES:
+                    assist_report("cone: centred")
+                    controller.rumble("..")
+                    return True
+            else:
+                centred = 0
+                spin_in_place(assist_steer(error))
+        elif found:
+            left_motor.stop()
+            right_motor.stop()
+        else:
+            spin_in_place(direction * ASSIST_SEARCH_SPEED)
+
+        wait(VISION_LOOP_MS, MSEC)
+
+
 # --- Driver loop ---
 
 def user_control():
@@ -888,8 +735,26 @@ def user_control():
     turn_sign = 1.0
     arm_power = 0.0
     diag_tick = 0
+    was_left = False
+    was_right = False
 
     while True:
+        # Edge-triggered so a button held through cancelling doesn't restart it.
+        left_now = controller.buttonLeft.pressing()
+        right_now = controller.buttonRight.pressing()
+        if (left_now and not was_left) or (right_now and not was_right):
+            if left_now and not was_left:
+                cone_assist(-1, "buttonLeft")
+            else:
+                cone_assist(1, "buttonRight")
+            forward_power = 0.0
+            turn_power = 0.0
+            arm_power = 0.0
+            left_now = controller.buttonLeft.pressing()
+            right_now = controller.buttonRight.pressing()
+        was_left = left_now
+        was_right = right_now
+
         forward_raw = controller.axis3.position()
         turn_raw = controller.axis4.position()
 
@@ -898,8 +763,8 @@ def user_control():
         if abs(turn_raw) < DEADBAND:
             turn_raw = 0
 
-        fast_turn = controller.buttonL1.pressing() or controller.buttonR1.pressing()
-        crawl = controller.buttonL2.pressing() or controller.buttonR2.pressing()
+        fast_turn = controller.buttonR1.pressing()
+        crawl = controller.buttonR2.pressing()
 
         if fast_turn:
             forward_multiplier = SPEED_BOOST
@@ -930,7 +795,7 @@ def user_control():
             turn_sign = approach(turn_sign, -1.0 if reverse_mode else 1.0,
                                  TURN_FLIP_STEP)
 
-        # Bias the mix toward holding forward speed, unless L1/R1 asks otherwise.
+        # Bias the mix toward holding forward speed, unless R1 asks otherwise.
         turn_applied = turn_power
         if not fast_turn:
             turn_applied = turn_applied * turn_taper(forward_power)
@@ -995,7 +860,6 @@ def main():
     # vision_report()
 
     # cone_detector()
-    # search_color_circle()
     # user_control()
     autonomous()
     # turn_tuner()
