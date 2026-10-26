@@ -36,8 +36,9 @@ gives a top speed of 200 revolutions per minute (rpm), which suits driving. A
 red 36:1 cartridge gives 100 rpm but twice the torque (turning force), which
 suits an arm that has to lift weight. The program must declare the correct
 cartridge for each motor, because the motor uses it to convert its internal
-rotation into output degrees. We return to what happens when this is wrong in
-\sref{sec:gotchas}.
+rotation into output degrees. If a motor is declared with the green 18:1
+cartridge but actually has a blue 6:1 cartridge fitted, every move overshoots by
+exactly $18/6 = 3$ times.
 
 The radio on port 9 is managed by the Brain's own firmware, so the program
 never declares it.

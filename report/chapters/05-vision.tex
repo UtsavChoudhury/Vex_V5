@@ -46,8 +46,8 @@ that are not the cone.
 
 These descriptions are passed to \code{AiVision()}, which sends them to the sensor
 when the program starts. Line 160 then switches colour detection on. Both of
-these details were discovered the hard way, as described in
-\sref{sec:ch-silent}.
+these details were discovered the hard way, after the sensor silently saw
+nothing at all.
 
 \section{Finding the Cone}
 \label{sec:findcone}
@@ -129,7 +129,7 @@ per second:
 Each line rules out one cause. For example, if the tick climbs and the timestamp
 changes but the counts stay at zero with the cone in view, then the program,
 cable and sensor all work, and the problem must be the colour settings. This is
-exactly what the screen showed on 22 September (\sref{sec:ch-silent}).
+exactly what the screen showed on 22 September.
 
 \subsection{Port Scanner}
 \label{sec:portscan}
