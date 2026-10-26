@@ -210,3 +210,4 @@ Run `vision_report()` and watch the console with the cone in front of the sensor
 
 `VISION_MIN_WIDTH` / `VISION_MIN_HEIGHT` discard matches under 20×20 px in the
 320×240 frame. Raise them to shorten detection range.
+# Vex_V5
