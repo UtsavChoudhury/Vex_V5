@@ -1,0 +1,133 @@
+\chapter{Timeline}
+\label{ch:timeline}
+
+This chapter gives an overview of when each part of the program was built. The
+dates and times come from the git history; all times are local (UTC+2).
+\cref{ch:challenges} then looks at the main challenges in more depth.
+
+\section{Overview}
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}[x=0.27cm, >={Stealth}]
+    % Day 0 = 8 Sep, day 48 = 26 Oct.
+    \draw[->, thick] (0,0) -- (50,0);
+    % Bar height is 0.1 per commit.
+    \draw (0,-0.15) -- (0,0.15);
+    \foreach \d/\n in {14/9, 17/2, 44/21, 45/21, 47/3, 48/1} {
+      \draw (\d,-0.15) -- (\d,0.15);
+      \fill[codekw!70] (\d-0.35,0.05) rectangle (\d+0.35,0.05+0.1*\n);
+    }
+    \node[below, font=\scriptsize] at (0,-0.2) {8 Sep};
+    \node[below, font=\scriptsize] at (14,-0.2) {22 Sep};
+    \node[below, font=\scriptsize] at (17.5,-0.65) {25 Sep};
+    \node[below, font=\scriptsize] at (44.5,-0.2) {22--23 Oct};
+    \node[below, font=\scriptsize] at (47.5,-0.65) {25--26 Oct};
+    \node[above, font=\scriptsize] at (14,0.95) {9};
+    \node[above, font=\scriptsize] at (17,0.25) {2};
+    \node[above, font=\scriptsize] at (44.5,2.15) {21 + 21};
+    \node[above, font=\scriptsize] at (47.5,0.35) {3 + 1};
+    \node[font=\scriptsize, align=center] at (30.5,1.0) {no commits\\(about four weeks)};
+  \end{tikzpicture}
+  \caption{Commits per day. Bar height shows the number of commits (self-made).}
+  \label{fig:timeline}
+\end{figure}
+
+\begin{table}[h]
+  \centering
+  \begin{tabularx}{\textwidth}{@{}llcX@{}}
+    \toprule
+    Date & Day & Commits & Focus \\
+    \midrule
+    8 Sep 2026  & Mon & --  & Project created in VEXcode \\
+    22 Sep 2026 & Mon & 9   & Accurate movement, file split and build step, first vision work \\
+    25 Sep 2026 & Thu & 2   & Getting the vision sensor to detect the cone \\
+    22 Oct 2026 & Thu & 21  & Autonomous that searches for the cone and drives to it \\
+    23 Oct 2026 & Fri & 21  & Making the cone approach reliable \\
+    25 Oct 2026 & Sun & 3   & Fixed S--A--B autonomous; cone search moved to driver control \\
+    26 Oct 2026 & Mon & 1   & Repository published \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Summary of development days.}
+  \label{tab:days}
+\end{table}
+
+The work happened in short, intense sessions rather than evenly over time. This
+matches how a robotics team works in practice: most changes need the robot on a
+practice field, so programming happens when the team meets.
+
+\section{8 September: Project Created}
+
+The VEXcode project was created on 8 September at 19:09 (recorded as
+\code{creationDate} in the project settings). It was not yet under git, so the
+next two weeks are not recorded commit by commit. By 21 September, a working
+single-file program existed with arcade drive, slew limiting, the arm and claw,
+and a basic autonomous routine. An older 177-line version was also kept as
+\code{main.py.bak}.
+
+\section{22 September: Foundations}
+
+The first four commits all have a time of 15:21, which shows they were saved
+together in one batch at the start of the session, rather than one at a time
+while the work was being done.
+
+\begin{itemize}
+  \item \commit{4f76b82}: the existing program was saved unchanged, as a restore
+    point in case any later change made things worse.
+  \item \commit{eb032a0}: autonomous movement was rewritten with explicit maths,
+    \code{HOLD}, proportional timeouts and the turn tuner (\cref{ch:movement}).
+  \item \commit{78005ed}: first AI Vision cone detection.
+  \item \commit{0607385}: the program was split into five files, with
+    \code{build.py} to rejoin them (\cref{ch:structure}).
+  \item \commit{165d475}, \commit{7043f53}: the README and AGENTS documents were
+    written, and long comments were moved out of the code into them.
+  \item \commit{2e1cf54}: the turn tuner's screen flicker was fixed.
+  \item \commit{b4624fd}, \commit{91a2514}: the vision diagnostic was moved to
+    the Brain screen, which revealed that colour detection was switched off.
+\end{itemize}
+
+\section{25 September: Making Vision Work}
+
+\begin{itemize}
+  \item \commit{08c26bb}: the colours were declared in code, after we found they
+    had never reached the sensor (\sref{sec:ch-silent}).
+  \item \commit{a2bfc94}: the port scanner was added.
+\end{itemize}
+
+\section{22 October: Searching for the Cone}
+
+After about four weeks without commits, the goal changed: the autonomous routine
+should find the cone and drive up to it by itself. This session used an AI coding
+assistant, GitHub Copilot, from 16:46 to 17:28, then Claude from 17:32. Commits
+were made every one to three minutes, which reflects a fast loop: change a
+number, build, download, test on the robot, repeat.
+
+The work moved through three phases: searching (spinning in a circle until the
+cone is seen), approaching (driving towards it), and finally stopping to measure
+before each turn. The details are in \sref{sec:ch-cone}.
+
+\section{23 October: Making the Approach Reliable}
+
+The second session (15:48 to 17:44) followed the same loop, with Claude. Almost
+every commit fixes a failure seen in the previous test run: spinning past the
+cone, not seeing the cone from far away, wobbling left and right when close,
+losing the cone partway, and false readings. By the end of the day, the routine
+was much more robust, but still not fully reliable.
+
+\section{25 October: Change of Strategy}
+
+\begin{itemize}
+  \item \commit{76b036f}: the program was moved to download slot 3.
+  \item \commit{cf781d1}: the cone-hunting autonomous was replaced with the fixed
+    S--A--B path and wall squaring (\sref{sec:routine}). The cone alignment was
+    moved into driver control as the cone assist (\sref{sec:assist}). This
+    removed 622 lines and added 350.
+  \item \commit{cc730b7}: the documentation was updated to match.
+\end{itemize}
+
+\section{26 October: Published}
+
+\commit{448d4f1} added a heading to the README and marks the point at which the
+repository was pushed online.
+
+We now look at the main challenges in detail.

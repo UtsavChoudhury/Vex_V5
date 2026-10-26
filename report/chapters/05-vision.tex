@@ -1,0 +1,162 @@
+\chapter{AI Vision}
+\label{ch:vision}
+
+The AI Vision sensor is a camera with its own processor. It does not send whole
+images to the Brain. Instead, it finds areas of the image that match colours we
+have described, and reports a list of \emph{objects}: where each one is and how
+big it is. This chapter explains how we describe the cone to the sensor, how
+the program picks the cone out of the sensor's reports, and the diagnostic tools
+we built when the sensor did not work.
+
+\section{How the Sensor Reports Objects}
+\label{sec:sensor}
+
+The sensor's image is 320 pixels wide and 240 pixels tall. For each object it
+finds, it reports:
+
+\begin{itemize}
+  \item \code{id}: which colour (or colour code) matched;
+  \item \code{centerX}, \code{centerY}: the centre of the object, in pixels;
+  \item \code{width}, \code{height}: the size of the object's bounding box, the
+    smallest rectangle that contains it.
+\end{itemize}
+
+These numbers are enough for our purposes. \code{centerX} tells us whether the
+cone is to the left (below 160) or right (above 160) of the robot, and
+\code{width} tells us roughly how close it is, since a closer cone looks wider.
+
+\section{Describing the Cone}
+\label{sec:describe}
+
+Our cone is half yellow and half blue. We give the sensor two \emph{colour
+descriptions}, one for each half, and one \emph{colour code}, which matches only
+when the two colours are found next to each other. The colour code is more
+reliable than either colour alone, because many things on a field are yellow or
+blue, but very few are yellow directly beside blue.
+
+\lstinputlisting[firstline=151,firstnumber=151,lastline=160,caption={Colour descriptions in \code{src/config.py}, lines 151--160.},label=lst:colours]{\src{config.py}}
+
+Each \code{Colordesc} gives an id, a red--green--blue (RGB) value, and two
+tolerances: how far the hue (the shade of colour) and the saturation (how vivid
+it is) may differ from that value and still count as a match. The RGB values
+were sampled from the AI Vision Utility, a VEX tool that shows the camera's view
+on a laptop. The tolerances are wide (hue 40, saturation 1.00), which helps the
+sensor recognise the cone in different lighting, but might also match objects
+that are not the cone.
+
+These descriptions are passed to \code{AiVision()}, which sends them to the sensor
+when the program starts. Line 160 then switches colour detection on. Both of
+these details were discovered the hard way, as described in
+\sref{sec:ch-silent}.
+
+\section{Finding the Cone}
+\label{sec:findcone}
+
+\code{find_cone()} is the one function that every other part of the program uses
+to look for the cone. It returns the cone's object, or \code{None} if there is no
+cone in view.
+
+\lstinputlisting[firstline=9,firstnumber=9,lastline=26,caption={\code{find_cone()} in \code{src/vision.py}, lines 9--26.},label=lst:findcone]{\src{vision.py}}
+
+It first asks the sensor for every colour code it can see (line 14). It ignores
+any that are not the cone code, and any smaller than 6 by 6 pixels, since a tiny
+match is more likely to be noise than a cone. If several cones remain, it
+returns the largest, because the largest is most likely the nearest.
+
+The minimum size of 6 pixels was originally 20. We lowered it because a cone on
+the far side of the field is only about 15 pixels wide, so the robot could not
+see distant cones at all (commit \commit{6c3a1b7}).
+
+\section{The Colour-Pair Fallback}
+\label{sec:colourpair}
+
+At a distance or in poor lighting, the sensor sometimes recognises both colours
+but fails to recognise the code that combines them. When this happens,
+\code{find_cone()} falls back to \code{find_color_pair()}, which does the
+combination itself:
+
+\lstinputlisting[firstline=36,firstnumber=36,lastline=56,caption={\code{find_color_pair()} in \code{src/vision.py}, lines 36--56.},label=lst:pair]{\src{vision.py}}
+
+It finds the largest yellow object and the largest blue object. It then checks
+that they are close together: their centres must be no further apart than the
+largest side of either object (lines 49--51). If they are, it builds one box that
+surrounds both (lines 52--56).
+
+This merged box matters. An earlier version returned only the yellow half, so
+the robot aimed at the middle of the yellow half instead of the middle of the
+cone, and judged distance using half the cone's real width. Merging the two
+halves into one box fixed both problems (commits \commit{8471b29} and
+\commit{f1f4d77}).
+
+The box is returned as a \code{ConeBox} (lines 28--34), a small class with the
+same field names as a real sensor object. This means code that uses
+\code{find_cone()} does not need to know which method found the cone.
+
+\section{Confirming a Sighting}
+\label{sec:confirm}
+
+A single frame can contain a false match, for example a flash of light that
+briefly looks yellow. Acting on every single sighting would make the robot
+twitch. The program therefore waits for the cone to appear in
+\code{VISION_CONFIRM_FRAMES} (3) frames in a row before believing it is there. At
+one frame every 50~ms, this adds only 150~ms of delay. \code{cone_detector()}
+(lines 58--98 of \code{vision.py}) uses the same idea in reverse: the cone must be
+missing for 3 frames before the robot reports it as lost.
+
+\section{Diagnostic Tools}
+\label{sec:diagnostics}
+
+When the sensor did not detect anything, there were several possible causes: a
+wrong port, an unplugged cable, the colours not being loaded, or the program not
+running at all. We built two tools to tell these apart without a laptop.
+
+\subsection{Vision Report}
+
+\code{vision_report()} draws the sensor's status on the Brain screen four times
+per second:
+
+\begin{itemize}
+  \item a \textbf{tick counter} that goes up each time it redraws, which proves
+    the program is running;
+  \item \code{installed()}, which is \code{True} if a sensor is plugged into the
+    configured port;
+  \item the sensor's \textbf{timestamp}, which changes with every new frame, which
+    proves the sensor is sending data;
+  \item the number of \textbf{codes} and \textbf{colours} found, and the details of
+    each object.
+\end{itemize}
+
+Each line rules out one cause. For example, if the tick climbs and the timestamp
+changes but the counts stay at zero with the cone in view, then the program,
+cable and sensor all work, and the problem must be the colour settings. This is
+exactly what the screen showed on 22 September (\sref{sec:ch-silent}).
+
+\subsection{Port Scanner}
+\label{sec:portscan}
+
+\code{scan_ports()} finds which port the sensor is on, which is useful because
+the port in \code{config.py} was originally a guess:
+
+\lstinputlisting[firstline=150,firstnumber=150,lastline=160,caption={Port probing in \code{scan_ports()}, \code{src/vision.py}, lines 150--160.},label=lst:scan]{\src{vision.py}}
+
+It tries to create a sensor on each of the 21 ports. A port counts as a sensor
+only if it reports \code{installed()} \emph{and} its timestamp changes over
+100~ms; a port with nothing on it will not produce new frames. The
+\code{try}/\code{except} block skips any port that causes an error, so one bad
+port does not stop the scan.
+
+\section{Summary}
+
+\begin{enumerate}
+  \item The sensor reports each matching object's position and size
+    (\sref{sec:sensor}).
+  \item The cone is described as a yellow--blue colour code, declared in code and
+    sent to the sensor at start-up (\sref{sec:describe}).
+  \item \code{find_cone()} returns the largest cone, falling back to merging a
+    nearby yellow and blue object (\sref{sec:findcone}, \sref{sec:colourpair}).
+  \item On-screen diagnostics and a port scanner find faults without a laptop
+    (\sref{sec:diagnostics}).
+\end{enumerate}
+
+Having described the final program, we now describe how it developed over
+time.

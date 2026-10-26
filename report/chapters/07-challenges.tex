@@ -1,0 +1,287 @@
+\chapter{Challenges and Solutions}
+\label{ch:challenges}
+
+This chapter goes through the main problems we met, in the order we met them.
+For each one, we describe what went wrong, what caused it, what we tried, and
+what finally worked. Some attempts failed, and we include those too, because
+they explain why the final code looks the way it does.
+
+\section{Inaccurate Autonomous Movement}
+\label{sec:ch-geometry}
+
+\textbf{Problem.} Every autonomous drive and turn ended in the wrong place, and
+long drives stopped well short.
+
+\textbf{Cause.} There were three separate causes, which made the problem hard to
+spot because they all produced similar-looking errors:
+
+\begin{enumerate}
+  \item The \code{DriveTrain} used the SDK's example measurements instead of our
+    robot's (\sref{sec:original}), so every conversion was off by several
+    percent.
+  \item \code{BRAKE} kept the overshoot from each move, so errors added up over a
+    routine (\sref{sec:hold}).
+  \item A flat 5-second timeout cut long drives off at about half distance
+    (\sref{sec:timeouts}).
+\end{enumerate}
+
+\textbf{Solution.} We replaced the hidden conversion with our own maths using
+measured sizes, switched to \code{HOLD}, and made timeouts depend on the move
+(commit \commit{eb032a0}). For the error that remained, mostly wheel scrub, we
+added \code{TURN_SCALE} and the on-robot \code{turn_tuner()}.
+
+\section{One File on the Robot}
+\label{sec:ch-onefile}
+
+\textbf{Problem.} After we split the program into files, it worked in the editor
+but crashed on the robot with an \code{ImportError}.
+
+\textbf{Cause.} The Brain only receives and runs one file (\sref{sec:singlefile}).
+
+\textbf{Solution.} \code{build.py} joins the files back together before every
+download (\sref{sec:build}). The cost is one extra step: forgetting to run
+\code{build.py} means the robot runs an old version. This was, in fact, the first
+thing the README tells a reader to check when ``nothing happens at all''.
+
+\section{The Silent Vision Failure}
+\label{sec:ch-silent}
+
+This was the hardest problem to diagnose, because the sensor gave no error at
+all. It simply never saw anything.
+
+\textbf{Attempt 1: print to the console.} The first diagnostic, \code{vision_report()},
+used \code{print()}. However, \code{print()} sends text to the VEXcode console on
+the laptop, which is only visible while the robot is connected by cable with the
+console open. On the field, the robot showed nothing, so we could not tell
+whether the sensor was failing or the program was not running at all.
+
+\textbf{Attempt 2: draw on the Brain screen} (\commit{b4624fd}). We rewrote the
+report to draw on the Brain's own screen, with a tick counter, the
+\code{installed()} result, the frame timestamp, and the object counts
+(\sref{sec:diagnostics}). The screen showed the tick climbing, \code{installed}
+as \code{True}, and the timestamp changing, but zero colours and zero codes with
+the cone directly in front of the camera. So the sensor was connected and sending
+frames, but was not matching anything.
+
+\textbf{Cause 1: detection switched off} (\commit{91a2514}). The SDK turns colour
+processing off by default, and it must be switched on with
+\code{color_detection(True)}. We added this, but the counts stayed at zero.
+
+\textbf{Cause 2: the colours never reached the sensor} (\commit{08c26bb}, three
+days later). We had originally chosen \emph{not} to declare the colours in code,
+because declaring them sends new values to the sensor and we did not want to
+overwrite the colours tuned in the AI Vision Utility. However, a screenshot of
+the Utility showed the message ``No AI Vision Sensor Connected''. The colours had
+been tuned while the sensor was not connected, so they were only ever saved in
+the Utility, never on the sensor. The sensor was matching against an empty list.
+
+\textbf{Solution.} We declared the colours in \code{config.py}, using RGB values
+sampled from the Utility's swatches, so they are sent to the sensor every time
+the program starts (\lref{lst:colours}). This removed the dependency on the
+Utility entirely. It also revealed a smaller mistake: the Utility listed
+\code{bluecone} first, so blue is colour 1 and yellow is colour 2, the opposite of
+our earlier guess.
+
+\textbf{Lesson.} A failure with no error message needs a diagnostic that rules
+out one cause at a time. Each line on the vision report answers one question
+(``is the program running?'', ``is the sensor plugged in?'', ``is it sending?'',
+``is it matching?''), and together they narrowed the problem down to the one
+place that was wrong.
+
+\section{Screen Flicker}
+\label{sec:ch-flicker}
+
+\textbf{Problem.} The turn tuner's screen flickered constantly.
+
+\textbf{Cause.} The tuner redrew the screen on every loop, 20 times per second,
+and each redraw started by clearing the screen. So the screen was blank for part
+of every redraw, which the eye sees as flicker.
+
+\textbf{Solution} (\commit{2e1cf54}). There were two changes. First, the screen
+is now only redrawn when a button actually changes something. Second,
+\code{brain.screen.render()} switches the screen to \emph{double buffering}: the
+program draws onto a hidden copy, and \code{render()} shows the finished copy all
+at once, so the blank stage is never visible.
+
+Note: double buffering applies to the whole screen from then on. Any other code
+that draws must then also call \code{render()}, or its output never appears. This
+is safe in the tuner only because \code{turn_tuner()} never returns, so nothing
+else draws afterwards. This is recorded in \code{AGENTS.md} as a pitfall.
+
+\section{Driving to the Cone}
+\label{sec:ch-cone}
+
+On 22 and 23 October we tried to make the autonomous routine find the cone and
+drive up to it. This took 42 commits over two sessions. We describe it in
+stages, since each stage was a response to the failures of the one before.
+
+\subsection{Stage 1: Spinning in a Circle}
+
+The first version (\commit{3bf3746}) drove in a slow circle until the target
+colour appeared. The search speed was difficult to choose:
+
+\begin{itemize}
+  \item At 30\% and 60\% power on the two sides, the robot turned too fast and the
+    camera image blurred, so it spun straight past the cone.
+  \item At 1\% and 2\%, it was too weak to overcome friction and barely moved.
+  \item 5\% and 10\% was the compromise (\commit{cb78f60}).
+\end{itemize}
+
+What to search for also changed several times: first the yellow colour, then the
+yellow--blue code, then yellow again, and finally the code (\commit{4e0d8ed}). The
+yellow colour alone is easier to detect but less specific; the code is specific
+but drops out more often. This trade-off was only solved later, by the
+colour-pair fallback (\sref{sec:colourpair}).
+
+\subsection{Stage 2: Steering While Driving}
+
+Next, the robot was made to approach the cone, steering towards it while
+driving, and stopping once the cone appeared a certain width in the image.
+
+\begin{itemize}
+  \item It stopped too early, sometimes immediately. A minimum driving time was
+    added (\commit{f05e383}), and the stopping width was raised from 100 to 180,
+    then 250 pixels (\commit{80b5dc2}, \commit{5bc2a42}).
+  \item It drifted off-centre while steering. We changed it to turn first, until
+    centred, and only then drive straight (\commit{dc63501}), and tightened the
+    centring tolerance from 20 to 5 pixels (\commit{091819b}).
+  \item It still wobbled, because the image shakes while the robot moves and the
+    readings jump around. We tried driving in short pulses (\commit{3559957}) and
+    requiring several centred frames in a row (\commit{7ea5cea}).
+  \item We then tried proportional steering (\commit{5bffee1}), the same method
+    later used by the cone assist (\sref{sec:assist}).
+\end{itemize}
+
+\subsection{Stage 3: Stop, Measure, Turn}
+
+The key change came with \commit{2ea38be}. Instead of steering from readings
+taken while moving, the robot now:
+
+\begin{enumerate}
+  \item stops and waits 250~ms to stop rocking;
+  \item takes 7 frames and uses the \emph{median} \code{centerX};
+  \item converts the error in pixels into an angle;
+  \item turns by that angle using the encoders (\sref{sec:turn}).
+\end{enumerate}
+
+The \emph{median} is the middle value once the readings are sorted. We used it
+instead of the mean (average) because one wild reading can drag the mean a long
+way, but barely moves the median~\cite{tukey1977}. For example, the readings 162,
+163, 163, 164, 240 have a mean of 178 but a median of 163.
+
+To convert pixels into degrees, we used the camera's horizontal field of view.
+The camera sees about 74° across 320 pixels, so each pixel is about
+$74/320 \approx 0.23°$. A cone 20 pixels right of centre therefore needs a turn of
+about $20 \times 0.23 = 4.6°$ to the right.
+
+Testing showed that the robot consistently ended up aimed slightly to the right.
+This was because the camera is not mounted exactly on the robot's centre line,
+so ``straight ahead'' is not exactly pixel 160. We moved
+\code{VISION_CENTER_X} to 164 (\commit{be39e7a}), a correction of about
+$4 \times 0.23 \approx 0.9°$. This value is still used by the cone assist today.
+
+\subsection{Stage 4: Making It Robust}
+
+On 23 October, the routine became: wait, scan, approach in steps, then align. The
+table below lists each failure and its fix.
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabularx}{\textwidth}{@{}XXl@{}}
+    \toprule
+    Failure seen in testing & Fix & Commit \\
+    \midrule
+    A continuous spin went past the cone & Turn in steps, stopping to look after each & \commit{0165a87} \\
+    Cone not seen from far away & Minimum size 20 $\to$ 6 px; colour-pair fallback & \commit{6c3a1b7} \\
+    Overshooting while closing in & Approach in shrinking steps, re-aiming between them & \commit{c0304ef} \\
+    No way to tell if the sensor was alive at the start & Live sensor status during the start delay & \commit{08bd56b} \\
+    Wobbling left and right when close & Merge the colour pair into one box; looser final tolerance & \commit{8471b29} \\
+    Pushing into the cone & Stop when the cone stops getting wider & \commit{8471b29} \\
+    Cone lost partway & Go back to scanning & \commit{86d01a7} \\
+    Brief dropouts ended the approach & Drive up to 3 steps ``blind'' & \commit{2c93591} \\
+    Sudden false readings close up & Ignore a width jump of more than $2.5\times$ & \commit{ce2e710} \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Failures and fixes on 23 October.}
+  \label{tab:oct23}
+\end{table}
+
+The step size during the approach shrank as the cone grew:
+\begin{equation}
+  \text{step} = \max\!\left(40,\; 400 \times \left(1 - \frac{w}{240}\right)\right)~\text{mm},
+  \label{eq:step}
+\end{equation}
+where $w$ is the cone's width in pixels and 240 is the width at which the robot
+counts as having arrived.
+
+\textbf{Worked example:} When the cone is far away and 60 pixels wide, the step
+is $400 \times (1 - 60/240) = 300$~mm. When it is close and 200 pixels wide, the
+step is $400 \times (1 - 200/240) \approx 67$~mm. So the robot covers distance
+quickly at first, then slows down to avoid hitting the cone.
+
+The ``stop when the cone stops getting wider'' rule worked because, once the
+robot touches the cone, driving further does not bring it any closer, so its width
+in the image stops increasing. This detected contact without a touch sensor.
+
+\section{The Decision to Change Strategy}
+\label{sec:ch-decision}
+
+On 25 October, the whole cone-hunting routine was replaced by the fixed S--A--B
+path (\commit{cf781d1}). The commit does not record a reason, but the history
+suggests three:
+
+\begin{itemize}
+  \item \textbf{Each fix revealed a new failure.} Over 42 commits, the failures
+    moved from one stage to the next rather than going away. This suggests the
+    approach was limited by how reliable the sensor readings were, not by any one
+    bug.
+  \item \textbf{It was slow.} Every look took 250~ms of settling plus 7 frames of
+    50~ms, about 0.6~s, before the robot could move again. A full scan in 15° steps
+    could take over 15~s, a large part of an autonomous period.
+  \item \textbf{It depended on conditions we cannot control,} such as lighting and
+    what else is on the field. A competition routine must work the same way every
+    time.
+\end{itemize}
+
+However, the work was not wasted. The parts that worked well, proportional
+steering, the camera offset, and the colour-pair fallback, became the cone assist
+in driver control. Here, a human decides when to use it and can cancel it
+instantly, so an occasional failure costs very little.
+
+\section{Known Pitfalls}
+\label{sec:gotchas}
+
+Some problems are recorded in \code{AGENTS.md} as warnings, so that anyone
+changing the code can avoid them:
+
+\begin{itemize}
+  \item \textbf{Cartridge mismatch.} If a motor is declared with the green 18:1
+    cartridge but actually has a blue 6:1 cartridge fitted, every move overshoots
+    by exactly $18/6 = 3$ times. If drives and turns are both badly wrong by the
+    same factor, the cartridge should be checked before anything else.
+  \item \textbf{Reversed right motor.} The right motor is declared reversed, so the
+    minus sign in \code{turn()} is what makes the sides oppose. Removing either
+    one breaks turning.
+  \item \textbf{\code{TURN_SCALE} is changed by \code{turn_tuner()}} using
+    \code{global}. This only works because both are in the same file; moving
+    either breaks it.
+  \item \textbf{The Brain screen does not clear itself.} Printing a shorter line over
+    a longer one leaves the end of the old line visible, so lines must be cleared
+    first.
+\end{itemize}
+
+\section{Summary}
+
+\begin{enumerate}
+  \item Movement errors had three causes, fixed with measured maths, \code{HOLD},
+    and proportional timeouts (\sref{sec:ch-geometry}).
+  \item The vision sensor failed silently because detection was off and the
+    colours had never been loaded; on-screen diagnostics found both
+    (\sref{sec:ch-silent}).
+  \item A vision-driven autonomous was built in four stages, but was replaced by a
+    fixed path because it could not be made reliable enough
+    (\sref{sec:ch-cone}, \sref{sec:ch-decision}).
+\end{enumerate}
+
+We now evaluate the program as it stands.

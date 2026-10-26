@@ -1,0 +1,211 @@
+\chapter{Driver Control}
+\label{ch:driver}
+
+In the driver control period, a person steers the robot with the controller.
+The left stick drives, and the right stick moves the arm and claw. The program's
+job is to turn stick positions into motor power in a way that feels smooth and
+predictable. This chapter follows a stick reading through each processing step,
+then explains the arm, the claw and the cone assist.
+
+All of this happens inside \code{user_control()} in \code{src/drivercontrol.py},
+which repeats every 20~ms (\code{LOOP_MS}), or 50 times per second.
+
+\section{From Stick to Target Power}
+\label{sec:stick}
+
+A stick reports its position as a number from $-100$ to $100$. Three steps turn
+this into a \emph{target} power for the drive.
+
+\textbf{Deadband.} A stick rarely rests at exactly zero, so a released stick
+might report 1 or $-1$. If this were passed to the motors, the robot would creep.
+Readings smaller than \code{DEADBAND} (2) are therefore treated as zero.
+
+\textbf{Squaring.} The reading is squared while keeping its sign:
+\begin{equation}
+  f = \frac{x\,|x|}{100} \times m ,
+  \label{eq:square}
+\end{equation}
+where $x$ is the stick reading and $m$ is the speed multiplier. Squaring gives
+the driver finer control near the centre, where precise movements happen, while
+still reaching full power at the edge.
+
+\textbf{Worked example:} With the stick halfway forward ($x = 50$) and the normal
+multiplier $m = 0.5$, $f = 50 \times 50 / 100 \times 0.5 = 12.5\%$. Without
+squaring, the same stick position would give 25\%. So the first half of the
+stick's travel covers only the slowest quarter of the speed range, which makes
+small adjustments much easier.
+
+\textbf{Speed modes.} The multiplier $m$ depends on the right shoulder buttons:
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Held & Multiplier & Use \\
+    \midrule
+    nothing & 0.50 (\code{SPEED_NORMAL}) & general driving \\
+    R1      & 1.00 (\code{SPEED_BOOST})  & crossing the field quickly \\
+    R2      & 0.25 (\code{SPEED_CRAWL})  & lining up precisely \\
+    \bottomrule
+  \end{tabular}
+  \caption{Speed modes.}
+  \label{tab:speeds}
+\end{table}
+
+The turning stick is processed in the same way, except that it is divided by 200
+rather than 100, and multiplied by \code{TURN_NORMAL} (0.8) unless R1 is held.
+This keeps turns gentler than forward movement in normal driving.
+
+\section{Slew Limiting}
+\label{sec:slew}
+
+If the driver pushes the stick from zero to full in an instant, sending full
+power straight to the motors would jolt the robot. This can make it tip, spin
+its wheels, or throw a game object out of the claw. \emph{Slew limiting} stops
+this by letting the power change by only a small step each loop.
+
+\lstinputlisting[firstline=10,firstnumber=10,lastline=22,caption={\code{slew()} in \code{src/drivercontrol.py}, lines 10--22.},label=lst:slew]{\src{drivercontrol.py}}
+
+There are two step sizes. Speeding up uses the smaller \emph{acceleration}
+step, so the robot gets moving smoothly. Slowing down (or reversing) uses the
+larger \emph{deceleration} step, so the robot still stops quickly when the
+driver lets go. Line 12 decides which one applies: if the target has the
+opposite sign to the current power, or is smaller in size, the robot is slowing
+down.
+
+\textbf{Worked example:} \code{FWD_ACCEL_STEP} is 4, so going from 0 to 100\% takes
+$100 / 4 = 25$ loops, or $25 \times 20~\text{ms} = 500$~ms.
+\code{FWD_DECEL_STEP} is 12, so stopping from 100\% takes about 9 loops, or
+170~ms. Turning uses larger steps (8 and 20), because a slow-to-respond turn
+feels sluggish to the driver.
+
+\section{Balancing Forward and Turn}
+\label{sec:taper}
+
+In arcade drive, the left motor gets \textit{forward + turn} and the right motor
+gets \textit{forward $-$ turn}. Two problems come from this.
+
+\textbf{Turning too sharply at speed.} The same turn stick input that is useful
+for spinning on the spot makes the robot swerve violently at full speed.
+\code{turn_taper()} reduces the turn as the forward speed increases:
+\begin{equation}
+  g(f) = g_{\text{rest}} + (g_{\text{full}} - g_{\text{rest}}) \frac{|f|}{100} ,
+  \label{eq:taper}
+\end{equation}
+with $g_{\text{rest}} = 1.00$ and $g_{\text{full}} = 0.35$. At rest the driver
+gets the full turn; at full speed only 35\% of it; and at 50\% forward power,
+$g = 1 + (0.35 - 1)(0.5) = 0.675$.
+
+\textbf{Clipping.} A motor cannot exceed 100\%. If forward is 80 and turn is 40,
+the left motor would be asked for 120 and is cut to 100, while the right motor
+gets 40. The robot's average forward speed drops from 80 to 70, so the driver
+loses speed just by turning. \code{fit_turn()} prevents this by shrinking the turn
+instead of the forward power:
+
+\lstinputlisting[firstline=37,firstnumber=37,lastline=44,caption={\code{fit_turn()} in \code{src/drivercontrol.py}, lines 37--44.},label=lst:fitturn]{\src{drivercontrol.py}}
+
+\textbf{Worked example:} With forward 80 and turn 40, there is $100 - 80 = 20$
+of room left. With \code{FORWARD_PRIORITY} at 0.8, the allowed turn is
+$40 + (20 - 40)(0.8) = 24$. The motors receive $80 + 24 = 104$ (cut to 100) and
+$80 - 24 = 56$, an average of 78 instead of 70. Most of the forward speed is
+kept, and the robot still turns.
+
+Holding R1 skips both the taper and \code{fit_turn()}, giving the driver raw,
+unrestricted control when they want it.
+
+\section{Arm and Claw}
+\label{sec:manipulator}
+
+The right stick's vertical axis moves the arm and its horizontal axis moves the
+claw. The arm is squared and slew-limited in the same way as the drive, because
+a heavy arm that starts or stops suddenly swings and can shake loose what it is
+carrying. The claw is not slew-limited, since it is light and needs to respond
+immediately.
+
+Both use \code{HOLD} when stopped (\code{manipulator_init()} in
+\code{config.py}), so the arm does not sag under its own weight. The claw's
+torque is limited with \code{CLAW_TORQUE}, and the claw only gets 60\% power
+(\code{CLAW_SPEED}), because once the claw has closed on an object, extra power
+only stalls the motor and makes it overheat. For tuning, \code{CLAW_DIAGNOSTIC}
+prints the claw motor's current and temperature to the Brain screen five times
+per second. This is wrapped in a \code{try} block (lines 53--58), so that if the
+SDK cannot report these values, the diagnostic fails quietly instead of
+stopping the drive in the middle of a match.
+
+There are optional software limits on the arm (\code{ARM_USE_LIMITS}). When
+enabled, the arm refuses to move further past its lowest or highest position,
+but is always allowed to move back.
+
+\section{Cone Assist}
+\label{sec:assist}
+
+The cone assist lets the driver press one button to make the robot find the cone
+and turn to face it. The left and right arrows start a search to the left or
+right. It uses the AI Vision sensor, which is explained in \cref{ch:vision};
+here we only describe how the assist behaves.
+
+The assist moves through three states:
+
+\begin{enumerate}
+  \item \textbf{Searching:} spin slowly (15\%) in the chosen direction. The speed
+    is kept low because the camera's image blurs when the robot spins quickly,
+    and a blurred cone is not recognised.
+  \item \textbf{Aligning:} once the cone has been seen in 3 frames in a row,
+    turn towards it with a power proportional to how far off-centre it is.
+  \item \textbf{Centred:} once the cone has been within 4 pixels of the centre for
+    3 frames in a row, stop and rumble the controller twice.
+\end{enumerate}
+
+If the cone disappears for 5 frames in a row while aligning, the assist goes
+back to searching.
+
+\lstinputlisting[firstline=77,firstnumber=77,lastline=82,caption={\code{assist_steer()} in \code{src/drivercontrol.py}, lines 77--82.},label=lst:steer]{\src{drivercontrol.py}}
+
+The turn power is \code{ASSIST_STEER_KP} (0.12) multiplied by the error in
+pixels. This is called \emph{proportional control}~\cite{astrom2008}: a big error
+gives a fast turn, and a small error gives a slow turn, so the robot slows down
+as it approaches the target and does not overshoot. However, a very small power
+is not enough to overcome friction, and the robot would stop just short of the
+centre. The power is therefore never allowed below 4\% (\code{ASSIST_MIN_TURN}),
+and it is capped at 15\% so the image does not blur.
+
+\textbf{Worked example:} If the cone is 100 pixels right of centre, the power is
+$0.12 \times 100 = 12\%$. At 10 pixels, $0.12 \times 10 = 1.2\%$, which is raised to
+the minimum of 4\%.
+
+\subsection{Cancelling}
+
+The driver must always be able to take back control instantly, because a stuck
+assist during a match could cost the game. Every loop, the assist checks all
+twelve buttons and both sticks; any button, or any stick pushed past 20, cancels
+it straight away.
+
+This created a problem. The button that \emph{starts} the assist is still being
+held down on the assist's first loop, so it would immediately cancel the assist.
+The \code{released} flag fixes this: the start button is ignored until it has
+been let go once. The reverse problem happens in \code{user_control()}: a
+button held down after cancelling would immediately start the assist again. The
+start is therefore \emph{edge-triggered}, meaning it only fires at the moment the
+button goes from not-pressed to pressed:
+
+\lstinputlisting[firstline=174,firstnumber=174,lastline=188,caption={Edge-triggered start in \code{user_control()}, \code{src/drivercontrol.py}, lines 174--188.},label=lst:edge]{\src{drivercontrol.py}}
+
+The assist also uses \code{spin()}, which sets a speed and returns immediately,
+rather than \code{spin_for()}, which waits until a movement finishes. A function
+that waits cannot check the buttons in the meantime, so it could not be
+cancelled.
+
+\section{Summary}
+
+\begin{enumerate}
+  \item Stick readings are deadbanded, squared and scaled by a speed mode
+    (\sref{sec:stick}).
+  \item Slew limiting ramps power up gently but lets it drop quickly
+    (\sref{sec:slew}).
+  \item The turn is tapered at speed and shrunk before it can clip, keeping
+    forward speed (\sref{sec:taper}).
+  \item The cone assist searches, aligns with proportional control, and can be
+    cancelled by any input (\sref{sec:assist}).
+\end{enumerate}
+
+We now explain how the robot recognises the cone.

@@ -1,0 +1,306 @@
+\chapter{Autonomous Movement}
+\label{ch:movement}
+
+During the autonomous period, nobody is steering. The robot can only follow a
+list of instructions such as ``drive 1000~mm forward, then turn 90 degrees
+right''. This chapter explains how the program turns those instructions into
+motor rotations, how we calibrate the result, and how the final autonomous
+routine uses them.
+
+\section{Encoders and Wheel Degrees}
+\label{sec:encoders}
+
+Each V5 motor contains an \emph{encoder}, a sensor that counts how far the motor
+shaft has turned, in degrees. The motor can be told ``turn exactly 1128
+degrees'' and it will stop itself once the encoder reaches that number. The
+robot has no sensor that measures distance along the floor directly, so every
+autonomous movement must be converted into a number of shaft degrees first.
+
+\section{The Original Approach}
+\label{sec:original}
+
+The program originally used the SDK's built-in \code{DriveTrain} class, which
+does this conversion internally. It was constructed as follows (from commit
+\commit{4f76b82}, since removed):
+
+\begin{lstlisting}[caption={Original drivetrain construction, \code{src/main.py} at \commit{4f76b82}.},label=lst:olddt,numbers=none]
+dt = DriveTrain(left_motor, right_motor, 300, 320, 320, MM)
+\end{lstlisting}
+
+The three numbers are the wheel travel, track width and wheelbase in
+millimetres. However, these are the SDK's example values, not measurements of
+our robot. Our wheels are 4-inch (101.6~mm) wheels, which travel about 319~mm
+per revolution, not 300~mm. Since every movement depended on these numbers,
+every autonomous distance and angle was wrong. We replaced \code{DriveTrain}'s
+movement functions with our own maths (commit \commit{eb032a0}), so that every
+step of the conversion is visible and can be checked.
+
+\section{Driving Straight}
+\label{sec:drive}
+
+When a wheel turns once, the robot moves forward by the wheel's circumference,
+$\pi D$, where $D$ is the wheel diameter. To move a distance $d$, the wheel must
+therefore turn $d / (\pi D)$ revolutions, which is $360\,d/(\pi D)$ degrees.
+Including the external gear ratio $G$ and a correction factor $S_d$, the number
+of shaft degrees is
+\begin{equation}
+  \theta_{\text{drive}} = \frac{d}{\pi D} \times 360 \times G \times S_d .
+  \label{eq:drive}
+\end{equation}
+
+$G$ is the number of motor revolutions per wheel revolution. Our wheels are
+mounted directly on the motors, so $G = 1$. $S_d$ is \code{DRIVE_SCALE}, a
+multiplier that absorbs small errors such as tyre squash or a slightly wrong
+diameter. It starts at 1.00. Equation \eref{eq:drive} is implemented directly:
+
+\lstinputlisting[firstline=9,firstnumber=9,lastline=11,caption={\code{wheel_degrees_for_distance()} in \code{src/autonomousroutine.py}, lines 9--11.},label=lst:drivedeg]{\src{autonomousroutine.py}}
+
+\textbf{Worked example:} To drive $d = 1000$~mm with $D = 101.6$~mm,
+\[
+  \pi D = \pi \times 101.6 \approx 319.2~\text{mm},
+  \qquad
+  \theta_{\text{drive}} = \frac{1000}{319.2} \times 360 \approx 1128^\circ .
+\]
+So each wheel turns just over three full revolutions. The same function with
+the SDK's default value of 300~mm would give $1200^\circ$, and the robot would
+drive about 1064~mm instead of 1000~mm, an error of over 6\%.
+
+\section{Turning in Place}
+\label{sec:turn}
+
+To turn on the spot, the two wheels spin in opposite directions. The robot then
+rotates around the point halfway between its wheels, and each wheel travels
+along a circle whose diameter is the \emph{track width} $W$, the distance between
+the left and right wheels (\fref{fig:turn}).
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}[>={Stealth}, scale=0.9]
+    \draw[dashed] (0,0) circle (2);
+    \draw[thick, fill=codebg] (-1.3,-1.6) rectangle (1.3,1.6);
+    \fill (0,0) circle (2pt) node[below right] {\small centre};
+    \draw[fill=gray!60] (-2.25,-0.6) rectangle (-1.75,0.6);
+    \draw[fill=gray!60] (1.75,-0.6) rectangle (2.25,0.6);
+    \draw[<->] (-2,-2.4) -- node[below] {\small track width $W$} (2,-2.4);
+    \draw[->, very thick, codekw] (-2.7,-0.6) -- (-2.7,0.8);
+    \node[left, font=\small, align=right] at (-2.8,0.1) {left wheel\\forward};
+    \draw[->, very thick, codest] (2.7,0.6) -- (2.7,-0.8);
+    \node[right, font=\small, align=left] at (2.8,-0.1) {right wheel\\backward};
+    \draw[->, thick] (110:2.5) arc (110:70:2.5);
+    \node[font=\small] at (0,2.85) {robot turns right by $\alpha$};
+  \end{tikzpicture}
+  \caption{A right point turn, seen from above. Each wheel follows the dashed circle of diameter $W$ (self-made).}
+  \label{fig:turn}
+\end{figure}
+
+One full spin moves each wheel along the whole circle, $\pi W$. A turn of
+$\alpha$ degrees is the fraction $\alpha/360$ of a full spin, so each wheel
+travels an arc of length
+\begin{equation}
+  s = \pi W \times \frac{\alpha}{360} .
+  \label{eq:arc}
+\end{equation}
+
+Note: this is not doubled. It can look as if both wheels together must cover
+$2\pi W$, but each wheel only covers its own half of the motion; the two sides
+split the circle by moving in opposite directions. \code{AGENTS.md} warns
+about this because it has been mistaken for an error before.
+
+Converting the arc $s$ into shaft degrees in the same way as \eref{eq:drive},
+with the turn correction factor $S_t$ (\code{TURN_SCALE}),
+\begin{equation}
+  \theta_{\text{turn}} = \frac{\pi W \alpha / 360}{\pi D} \times 360 \times G \times S_t
+                       = \frac{W}{D}\,\alpha\, G\, S_t .
+  \label{eq:turn}
+\end{equation}
+
+The $\pi$ and the 360 cancel, which leaves a neat result: the wheel turns
+$W/D$ times as far as the robot does.
+
+\lstinputlisting[firstline=13,firstnumber=13,lastline=16,caption={\code{wheel_degrees_for_turn()} in \code{src/autonomousroutine.py}, lines 13--16.},label=lst:turndeg]{\src{autonomousroutine.py}}
+
+\textbf{Worked example:} For a 90° right turn, with $W = 320$~mm,
+\[
+  \theta_{\text{turn}} = \frac{320}{101.6} \times 90 \approx 3.15 \times 90 \approx 283^\circ .
+\]
+The left wheel turns $283^\circ$ forward and the right wheel $283^\circ$
+backward. \code{turn()} does this by passing the same number to both sides with
+opposite signs:
+
+\lstinputlisting[firstline=39,firstnumber=39,lastline=47,caption={\code{drive()} and \code{turn()} in \code{src/autonomousroutine.py}, lines 39--47.},label=lst:driveturn]{\src{autonomousroutine.py}}
+
+The right motor is declared \emph{reversed} in \code{config.py} (it faces the
+other way on the robot), so ``forward'' means robot-forward on both sides. That
+is why a negative number on the right side is what makes the robot turn.
+
+\section{Stopping Accurately: HOLD versus BRAKE}
+\label{sec:hold}
+
+A V5 motor has three ways of stopping:
+
+\begin{itemize}
+  \item \textbf{COAST} cuts the power and lets the motor spin freely until
+    friction stops it.
+  \item \textbf{BRAKE} shorts the motor so it resists turning, which stops it
+    quickly, but it stops resisting once it has stopped.
+  \item \textbf{HOLD} actively pushes the motor back to its target position, even
+    after it has arrived.
+\end{itemize}
+
+The original program used \code{BRAKE} during autonomous. The problem is that a
+moving robot has momentum, so it slides slightly past its target. With
+\code{BRAKE}, this overshoot is kept, and it adds up across every movement in the
+routine. With \code{HOLD}, the motor notices that it has passed the target and
+pulls back. \code{AGENTS.md} records that switching to \code{HOLD} removed most
+of the original turn error. \code{move_wheels()} therefore sets \code{HOLD} before
+every autonomous movement (lines 28--29 of \code{autonomousroutine.py}).
+
+Driver control still uses \code{BRAKE}, because a driver expects the robot to
+stop and stay where it stops, not pull back towards an old target.
+
+\section{Timeouts}
+\label{sec:timeouts}
+
+Every movement has a \emph{timeout}, a maximum time after which the motor gives
+up. This prevents the robot from pushing against an obstacle forever. The
+original program used a flat 5-second timeout for every move. However, a long
+drive can need more than 5 seconds, and the timeout then silently stops it
+halfway with no error.
+
+\textbf{Worked example:} A green-cartridge motor turns at up to 200~rpm, which is
+$200 \times 360 / 60 = 1200$ degrees per second (\code{MOTOR_MAX_DPS}). At 50\%
+speed, it turns 600 degrees per second. \code{drive(5000)} needs
+$5000 / 319.2 \times 360 \approx 5639^\circ$, which takes about 9.4~s. In
+5~s, the motor only reaches $5 \times 600 = 3000^\circ$, which is about 2660~mm,
+or 53\% of the requested distance.
+
+The timeout is now calculated from the movement itself:
+\begin{equation}
+  t_{\text{timeout}} = 2 \times \frac{\theta}{\omega} + 1~\text{s},
+  \label{eq:timeout}
+\end{equation}
+where $\omega$ is the expected speed in degrees per second. The factor of 2
+allows for the motor being slower than its theoretical speed, and the extra
+second covers the time spent speeding up on short moves.
+
+\lstinputlisting[firstline=18,firstnumber=18,lastline=21,caption={\code{move_timeout_ms()} in \code{src/autonomousroutine.py}, lines 18--21.},label=lst:timeout]{\src{autonomousroutine.py}}
+
+For \code{drive(5000)} at 50\%, this gives $2 \times 9.4 + 1 = 19.8$~s, which is
+long enough to complete the move but still stops a robot that is genuinely
+stuck.
+
+\section{Calibration}
+\label{sec:calibration}
+
+Equations \eref{eq:drive} and \eref{eq:turn} are only as accurate as the
+measurements of $D$ and $W$. In practice, turns are also affected by
+\emph{wheel scrub}: during a point turn the tyres slide sideways slightly, so the
+encoders reach their target while the robot has turned less than intended.
+Scrub cannot be predicted from the geometry, so instead of measuring it, we
+absorb it into \code{TURN_SCALE}.
+
+If we ask for a turn of $\alpha_{\text{asked}}$ and the robot actually turns
+$\alpha_{\text{measured}}$, the corrected scale is
+\begin{equation}
+  S_{\text{new}} = S_{\text{old}} \times \frac{\alpha_{\text{asked}}}{\alpha_{\text{measured}}} .
+  \label{eq:scale}
+\end{equation}
+
+\textbf{Worked example:} We ask for a full 360° spin with $S_t = 1.00$ and the
+robot stops at 330°. Then $S_{\text{new}} = 1.00 \times 360/330 \approx 1.091$, so
+every future turn is made about 9\% larger to compensate.
+
+Measuring angles by eye is slow, so we wrote \code{turn_tuner()} (commit
+\commit{eb032a0}) to do the calibration on the robot itself, using the
+controller. Button A spins the robot one or more full turns and B spins it back.
+The up and down arrows change \code{TURN_SCALE} by 0.010, and R1 and R2 change
+it by 0.001 for fine adjustment. The driver keeps adjusting until the robot ends
+a full spin facing exactly the way it started, then copies the value shown on
+the screen into \code{config.py}. Button Y changes the test speed, because scrub
+depends on speed; the scale should be tuned at the speed the routine actually
+uses.
+
+\section{Squaring to the Wall}
+\label{sec:wallsquare}
+
+Even with perfect calibration, an autonomous routine is only as good as its
+starting position. If the robot starts angled by 3°, it will end up about
+52~mm off course after driving 1~m. Human placement at the start of a match is
+not precise enough to avoid this.
+
+\code{square_to_wall()} solves this by using the field wall as a reference. The
+robot reverses slowly into the wall. When one side touches first, that side
+stops while the other keeps going, which rotates the robot until its back is
+flat against the wall.
+
+\lstinputlisting[firstline=168,firstnumber=168,lastline=184,caption={\code{square_to_wall()} in \code{src/autonomousroutine.py}, lines 168--184.},label=lst:wall]{\src{autonomousroutine.py}}
+
+The robot knows it has reached the wall when both motors have \emph{stalled},
+meaning their speed has dropped below 5\% even though they are still powered.
+Three timings make this reliable:
+
+\begin{itemize}
+  \item \code{WALL_SQUARE_MIN_MS} (400~ms): stall checks are skipped at first,
+    because a motor that has only just started is also moving slowly and would
+    look stalled.
+  \item \code{WALL_SQUARE_PUSH_MS} (300~ms): after both sides stall, the robot
+    keeps pushing briefly, so that both sides are pressed flat rather than just
+    touching.
+  \item \code{WALL_SQUARE_MAX_MS} (2500~ms): if no wall is found, the robot
+    gives up rather than reversing forever.
+\end{itemize}
+
+\section{The Autonomous Routine}
+\label{sec:routine}
+
+The final routine follows the path in \fref{fig:path}. The robot starts at S
+with its back towards the wall, facing A.
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}[>={Stealth}, scale=1]
+    \fill[gray!35] (-1.0,-0.55) rectangle (1.0,-0.35);
+    \node[font=\small] at (0,-0.85) {wall};
+    \node[circle, draw, fill=white, inner sep=2pt] (S) at (0,0) {S};
+    \node[circle, draw, fill=white, inner sep=2pt] (A) at (0,3.5) {A};
+    \node[circle, draw, fill=white, inner sep=2pt] (B) at (3.5,3.5) {B};
+    \draw[->, thick] (S) -- node[left, font=\small] {1000 mm} (A);
+    \draw[->, thick] (A) -- node[above, font=\small] {1000 mm} (B);
+    \draw[->] (0.45,3.05) arc (-90:0:0.45);
+    \node[font=\small] at (1.3,2.85) {turn 90° right};
+  \end{tikzpicture}
+  \caption{The S--A--B autonomous path (self-made).}
+  \label{fig:path}
+\end{figure}
+
+\lstinputlisting[firstline=186,firstnumber=186,lastline=208,caption={Arm helpers and \code{autonomous()} in \code{src/autonomousroutine.py}, lines 186--208.},label=lst:auto]{\src{autonomousroutine.py}}
+
+The steps are:
+
+\begin{enumerate}
+  \item Square to the wall, so the robot starts straight (\sref{sec:wallsquare}).
+  \item Lift the arm 90 motor degrees and \code{HOLD} it, so it does not drag on
+    the floor while driving.
+  \item Drive 1000~mm to A, turn 90° right, and drive 1000~mm to B.
+  \item Release the arm by switching it to \code{COAST}, so it drops under its
+    own weight.
+\end{enumerate}
+
+A 300~ms \code{settle()} between moves lets the robot stop rocking, so that the
+momentum of one move does not carry into the next.
+
+\section{Summary}
+
+\begin{enumerate}
+  \item Distances and angles are converted into shaft degrees with
+    \eref{eq:drive} and \eref{eq:turn}, using measured wheel and track sizes
+    rather than the SDK's defaults.
+  \item \code{HOLD} and proportional timeouts make each move end where it
+    should (\sref{sec:hold}, \sref{sec:timeouts}).
+  \item \code{TURN_SCALE} absorbs wheel scrub and is tuned on the robot with
+    \code{turn_tuner()} (\sref{sec:calibration}).
+  \item Squaring to the wall gives a repeatable starting position for the
+    S--A--B routine (\sref{sec:wallsquare}, \sref{sec:routine}).
+\end{enumerate}
+
+We now explain the driver control half of the program.

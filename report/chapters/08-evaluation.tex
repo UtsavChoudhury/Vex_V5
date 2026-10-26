@@ -1,0 +1,91 @@
+\chapter{Evaluation}
+\label{ch:evaluation}
+
+This chapter evaluates the program as it stands after commit \commit{448d4f1}. We
+consider what it does well, where it falls short, and what could be done next.
+
+\section{Strengths}
+\label{sec:strengths}
+
+\textbf{The movement maths is visible and checkable.} Every distance and angle is
+converted with an equation that can be worked out by hand (\eref{eq:drive},
+\eref{eq:turn}). When a move is wrong, we can check each number in turn instead of
+guessing what a hidden library function is doing.
+
+\textbf{Calibration happens on the robot.} \code{turn_tuner()} lets the driver tune
+\code{TURN_SCALE} with the controller in a few minutes, without a laptop. This is
+useful at a competition, where the floor surface may differ from the practice
+field and turns need retuning.
+
+\textbf{Faults can be found without a laptop.} The vision report, the port scanner,
+and the claw diagnostic all draw on the Brain screen. These tools were what solved
+the silent vision failure (\sref{sec:ch-silent}).
+
+\textbf{The driver is always in control.} The cone assist can be cancelled by any
+button or stick, and the claw diagnostic cannot crash the drive loop. A failure in
+an optional feature therefore never takes control away from the driver.
+
+\textbf{Settings are in one place, and the reasoning is written down.} Every
+tunable number is in \code{config.py}, and \code{README.md} and \code{AGENTS.md}
+explain the decisions and the pitfalls. Someone new to the code can understand it
+without repeating our mistakes.
+
+\section{Limitations}
+\label{sec:limitations}
+
+\subsection{Open-Loop Turns}
+
+The autonomous routine is \emph{open-loop}: the robot turns the wheels a calculated
+number of degrees, but never checks which way it is actually facing. If a wheel
+slips, the error goes unnoticed and affects the rest of the path. \code{TURN_SCALE}
+corrects the average error, but not one-off slips. An Inertial sensor, which
+measures rotation directly, would allow \emph{closed-loop} turns that keep turning
+until the robot really faces the right way. The SDK supports this, but we have not
+confirmed whether the sensor is fitted to the robot.
+
+\subsection{No Competition Template}
+
+\code{main()} runs one mode chosen by hand (\sref{sec:modes}). At an official match,
+the field control system needs the program to register both
+\code{autonomous()} and \code{user_control()} with a \code{Competition} object, so that
+it can start each one at the right time. The program does not do this yet, so
+\code{main()} must be changed before the robot is used in an official match.
+
+\subsection{An Inactive Safeguard}
+
+\code{fit_turn()} only acts when forward power plus turn power exceeds 100
+(\sref{sec:taper}). With the current settings, this never happens in normal
+driving: forward power is at most 50\% (\code{SPEED_NORMAL}), and turn power is at
+most $50 \times 0.8 = 40\%$, further reduced by the taper. Holding R1 can exceed
+100, but R1 skips \code{fit_turn()}. The function is therefore inactive. It is
+harmless, but it suggests the speed settings were changed after it was written,
+and it should either be removed or kept deliberately for if the speeds are raised.
+
+\subsection{Wide Colour Tolerances}
+
+The colour descriptions use wide hue and saturation tolerances
+(\sref{sec:describe}). This helps detection in poor lighting, but increases the
+chance of matching something that is not the cone. The colour code and the
+colour-pair distance check reduce this risk, but do not remove it.
+
+\subsection{Wall Squaring Assumes a Wall}
+
+\code{square_to_wall()} assumes the robot starts with its back near a flat wall. If
+it starts too far away, it reverses for the full 2.5~s and then begins the path
+from wherever it stopped, with no warning.
+
+\subsection{Documentation Out of Date}
+
+The README and AGENTS documents still say the program downloads to slot 2, but
+commit \commit{76b036f} moved it to slot 3. This is minor, but it shows that
+documentation must be updated together with the code.
+
+\section{Future Work}
+
+\begin{enumerate}
+  \item Add a \code{Competition} object so the program works under field control.
+  \item Use the Inertial sensor, if fitted, for closed-loop turns.
+  \item Show a warning on the Brain screen if \code{square_to_wall()} times out
+    without finding a wall.
+  \item Narrow the colour tolerances once the competition lighting is known.
+\end{enumerate}

@@ -1,0 +1,180 @@
+\chapter{Program Structure}
+\label{ch:structure}
+
+This chapter describes the robot's hardware, how the code is split into files,
+and the build step that combines those files before they are sent to the robot.
+Understanding this structure first makes the later chapters easier to follow,
+because each later chapter focuses on one of these files.
+
+\section{Hardware}
+\label{sec:hardware}
+
+The V5 Brain has 21 numbered \emph{smart ports}. Each motor or sensor plugs into
+one port, and the program must be told which port each device is on.
+\tref{tab:ports} lists the devices.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}cll@{}}
+    \toprule
+    Port & Device & Cartridge \\
+    \midrule
+    1  & Right drive motor & green, 18:1 \\
+    2  & Left drive motor  & green, 18:1 \\
+    4  & AI Vision sensor  & -- \\
+    10 & Arm motor         & red, 36:1 \\
+    15 & Claw motor        & red, 36:1 \\
+    9  & VEXnet radio      & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Devices and the ports they are plugged into.}
+  \label{tab:ports}
+\end{table}
+
+A \emph{cartridge} is the gearbox inside a V5 motor. A green 18:1 cartridge
+gives a top speed of 200 revolutions per minute (rpm), which suits driving. A
+red 36:1 cartridge gives 100 rpm but twice the torque (turning force), which
+suits an arm that has to lift weight. The program must declare the correct
+cartridge for each motor, because the motor uses it to convert its internal
+rotation into output degrees. We return to what happens when this is wrong in
+\sref{sec:gotchas}.
+
+The radio on port 9 is managed by the Brain's own firmware, so the program
+never declares it.
+
+Note: in the Python SDK, ports are numbered from zero, so \code{Ports.PORT1} has
+the value 0. This is why the port scanner in \sref{sec:portscan} adds 1 before
+displaying a port number.
+
+\section{File Layout}
+\label{sec:layout}
+
+The program is split into five Python files inside \code{src/}, plus one build
+script. \tref{tab:files} summarises them.
+
+\begin{table}[h]
+  \centering
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    File & Contents \\
+    \midrule
+    \code{config.py} & Every device and every tunable number. \\
+    \code{vision.py} & Cone recognition and AI Vision diagnostics. \\
+    \code{autonomousroutine.py} & Movement maths, calibration tools, and \code{autonomous()}. \\
+    \code{drivercontrol.py} & Stick processing, the arm and claw, cone assist, and \code{user_control()}. \\
+    \code{main.py} & Chooses which mode runs. \\
+    \code{build.py} & Combines the five files into \code{src/download.py}. \\
+    \bottomrule
+  \end{tabularx}
+  \caption{The files in the project and what each one holds.}
+  \label{tab:files}
+\end{table}
+
+We keep every tunable number in \code{config.py}. This is useful because tuning
+the robot usually means changing a speed, a distance, or a tolerance, and
+having them in one place means we never have to search through the logic to
+find them. Each constant has a short comment giving its unit or meaning, for
+example:
+
+\lstinputlisting[firstline=35,firstnumber=35,lastline=45,caption={Autonomous constants in \code{src/config.py}, lines 35--45.},label=lst:autoconst]{\src{config.py}}
+
+\section{The Single-File Constraint}
+\label{sec:singlefile}
+
+The V5 Brain can only run \textbf{one} Python file. The project's settings are
+stored in \code{vex_project_settings.json}, inside the \code{.vscode} folder.
+This file has a single \code{main} entry that names the file to download, and
+there is no way to list several files. This
+creates a problem: a line such as \code{from config import *} works in the
+editor, because the editor can see \code{config.py}, but fails on the robot with
+an \code{ImportError}, because \code{config.py} was never sent.
+
+Before 22 September, the whole program lived in one 425-line \code{main.py}.
+This worked, but it was difficult to read and edit because driving, autonomous
+and settings were all mixed together. Splitting it into files (commit
+\commit{0607385}) made each part easier to find, but only because we also wrote
+a build step to undo the split before download.
+
+\section{The Build Step}
+\label{sec:build}
+
+\code{build.py} reads the five files in a fixed order and joins them into one
+file, \code{src/download.py}. The project is configured to download that file
+instead of \code{main.py}. \fref{fig:build} shows the process.
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}[
+      file/.style={draw, rounded corners, minimum width=3.4cm, minimum height=0.75cm, font=\ttfamily\small},
+      outfile/.style={draw, thick, rounded corners, minimum width=3.4cm, minimum height=0.9cm, font=\ttfamily\small, fill=codebg},
+      >={Stealth}]
+    \node[file] (c) at (0,  2.4) {config.py};
+    \node[file] (v) at (0,  1.2) {vision.py};
+    \node[file] (a) at (0,  0.0) {autonomousroutine.py};
+    \node[file] (d) at (0, -1.2) {drivercontrol.py};
+    \node[file] (m) at (0, -2.4) {main.py};
+    \node[draw, align=center, minimum width=3.2cm, minimum height=1.6cm, font=\small] (b) at (5,0)
+      {\texttt{build.py}\\[2pt] remove local imports\\ check it compiles};
+    \node[outfile] (o) at (10,0) {download.py};
+    \node[font=\small, below=0.2cm of o] {sent to the Brain};
+    \foreach \n in {c,v,a,d,m} \draw[->] (\n.east) -- (b.west);
+    \draw[->, thick] (b) -- (o);
+  \end{tikzpicture}
+  \caption{\code{build.py} joins the five source files, in dependency order, into the single file the Brain runs (self-made).}
+  \label{fig:build}
+\end{figure}
+
+The order matters. Python reads a file from top to bottom, so a function must be
+defined before anything that uses it runs. Since every other file reads values
+from \code{config.py}, it must come first. The order is stored in a list:
+
+\lstinputlisting[firstline=12,firstnumber=12,lastline=19,caption={Module order and import patterns in \code{build.py}, lines 12--19.},label=lst:buildorder]{../build.py}
+
+The two regular expressions (text patterns) match the import lines that would
+break on the robot. \code{LOCAL_IMPORT} matches imports of our own files, which
+are no longer needed once everything is in one file. \code{VEX_IMPORT} matches
+\code{from vex import *}, which every file repeats; the build keeps just one
+copy at the top. The main loop then removes those lines from each file and
+joins what remains:
+
+\lstinputlisting[firstline=36,firstnumber=36,lastline=59,caption={Flattening and checking in \code{build.py}, lines 36--59.},label=lst:buildloop]{../build.py}
+
+Line 54 is a safety check. \code{compile()} asks Python to read the combined
+file without running it. If the combination has a syntax error, the build stops
+with a clear message instead of writing a broken file. Without this check, the
+error would only appear on the robot, with a line number pointing into the
+nearly 900-line generated file, which is much harder to trace back to the original
+source.
+
+Note: \code{download.py} is generated, so it must never be edited by hand. Any
+edit would be overwritten the next time \code{build.py} runs. We still commit it
+to git, so that a fresh copy of the project can be downloaded to a robot
+immediately at a competition, even without Python installed.
+
+\section{Selecting a Mode}
+\label{sec:modes}
+
+At a real competition, the field control system tells the robot when to run
+autonomous and when to hand over to the driver. During practice there is no
+field control, so \code{main()} chooses one mode by hand:
+
+\lstinputlisting[firstline=13,firstnumber=13,lastline=23,caption={Mode selection in \code{src/main.py}, lines 13--23.},label=lst:main]{\src{main.py}}
+
+Exactly one line is left uncommented. The diagnostic modes
+(\code{scan_ports}, \code{vision_report}, \code{cone_detector}) and the
+calibration mode (\code{turn_tuner}) are kept here so that any of them can be
+run on the robot by changing one line, rather than by writing a separate
+program.
+
+\section{Summary}
+
+\begin{enumerate}
+  \item The robot has two green-cartridge drive motors, two red-cartridge
+    manipulator motors and an AI Vision sensor (\sref{sec:hardware}).
+  \item The code is split into five files, with every tunable number kept in
+    \code{config.py} (\sref{sec:layout}).
+  \item The Brain runs only one file, so \code{build.py} joins the five files
+    and checks the result compiles before it is downloaded (\sref{sec:build}).
+\end{enumerate}
+
+We now explain how the robot moves during the autonomous period.

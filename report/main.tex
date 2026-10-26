@@ -1,0 +1,97 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[british]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+
+% "Section 3.2 [p. 7]" style cross-references.
+\newcommand{\sref}[1]{Section~\ref{#1} [p.~\pageref{#1}]}
+\newcommand{\cref}[1]{Chapter~\ref{#1} [p.~\pageref{#1}]}
+\newcommand{\fref}[1]{Figure~\ref{#1} [p.~\pageref{#1}]}
+\newcommand{\lref}[1]{Listing~\ref{#1} [p.~\pageref{#1}]}
+\newcommand{\tref}[1]{Table~\ref{#1} [p.~\pageref{#1}]}
+\newcommand{\eref}[1]{(\ref{#1}) [p.~\pageref{#1}]}
+\DeclareRobustCommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\commit}[1]{\texttt{#1}}
+
+\definecolor{codebg}{RGB}{247,247,247}
+\definecolor{codekw}{RGB}{0,70,140}
+\definecolor{codecm}{RGB}{110,110,110}
+\definecolor{codest}{RGB}{150,60,0}
+
+\lstdefinestyle{py}{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecm}\itshape,
+  stringstyle=\color{codest},
+  backgroundcolor=\color{codebg},
+  numbers=left,
+  numberstyle=\tiny\color{codecm},
+  frame=single,
+  rulecolor=\color{codecm},
+  breaklines=true,
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  upquote=true,
+}
+\lstset{style=py}
+\renewcommand{\lstlistingname}{Listing}
+
+% Source files are read straight from the repository, so line numbers in the
+% listings are the real line numbers at the time of writing.
+\newcommand{\src}[1]{../src/#1}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\large VEX V5 Competition Robot\par}
+  \vspace{1.5cm}
+  {\LARGE\bfseries Engineering Report:\\[0.3em] The Program\par}
+  \vspace{1.5cm}
+  {\large How the program is structured, what each part does, and how it\\
+  developed between September and October 2026\par}
+  \vfill
+  {\large Utsav Choudhury\par}
+  \vspace{0.5em}
+  {October 2026\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\include{chapters/01-introduction}
+\include{chapters/02-structure}
+\include{chapters/03-movement}
+\include{chapters/04-driver}
+\include{chapters/05-vision}
+\include{chapters/06-timeline}
+\include{chapters/07-challenges}
+\include{chapters/08-evaluation}
+\include{chapters/09-conclusion}
+
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}

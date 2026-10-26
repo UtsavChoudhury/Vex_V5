@@ -9,8 +9,8 @@ local (UTC+2).
 | Mon 8 Sep 2026 | none | Project created in VEXcode |
 | Mon 22 Sep 2026 | 9 | Accurate autonomous movement, modular code, AI Vision first light |
 | Thu 25 Sep 2026 | 2 | Getting the AI Vision sensor to actually detect the cone |
-| Thu 22 Oct 2026 | 20 | Autonomous that searches for the cone and drives to it |
-| Fri 23 Oct 2026 | 19 | Making the cone approach reliable |
+| Thu 22 Oct 2026 | 21 | Autonomous that searches for the cone and drives to it |
+| Fri 23 Oct 2026 | 21 | Making the cone approach reliable |
 | Sun 25 Oct 2026 | 3 | Change of direction: fixed autonomous path, cone assist moved to the driver |
 | Mon 26 Oct 2026 | 1 | Repo published |
 
