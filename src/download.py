@@ -55,7 +55,9 @@ AUTO_ARM_SPEED = 40
 # Override preload autonomous. Arm degrees are absolute from where the arm sits
 # when autonomous starts; read them off the brain screen in user_control().
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
-AUTO_GOAL_MM = 230        # wall-squared start -> claw centred over the goal
+# Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
+AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
+AUTO_LEG2_MM = 250        # goal-along distance minus turning centre -> claw centre
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 150  # pin bottom clears the goal rim
 AUTO_ARM_PLACE_DEG = 60   # pin bottom inside the goal
@@ -591,15 +593,25 @@ def open_claw():
     wait(AUTO_CLAW_OPEN_MS, MSEC)
     claw_motor.stop()
 
+AUTO_SIDE = 1               # +1 goal on the right, -1 on the left
+
+def set_auto_side(side):
+    """Called by the selector; lives here so the global is this module's."""
+    global AUTO_SIDE
+    AUTO_SIDE = side
+
 def autonomous():
-    """Override: preload pin into the alliance goal straight ahead. See README.md."""
+    """Override: mid-wall start, out a tile, turn to the alliance goal, place the preload."""
     manipulator_init()
-    arm_motor.reset_position()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
     square_to_wall(AUTO_SEAT_MS)
     arm_to(AUTO_ARM_CARRY_DEG)
-    drive(AUTO_GOAL_MM, AUTO_GOAL_SPEED)
+    drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
+    settle()
+    turn(90 * AUTO_SIDE)
+    settle()
+    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
     open_claw()
@@ -908,30 +920,72 @@ def user_control():
 
 
 
-# --- Mode ---
+# --- Programs ---
+# Arm degrees count from program start, so always start with the arm resting down.
 
-def match():
-    """Field control picks autonomous or driver. Use this at a competition."""
-    global competition
-    competition = Competition(user_control, autonomous)
-
-def test_autonomous():
-    """Run autonomous once, then hand over to the driver to reset the robot."""
-    autonomous()
+def driver():
+    """Slot 1: manual control only."""
+    arm_motor.reset_position()
     user_control()
 
-def main():
-    # Arm degrees count from here, so start every program with the arm resting down.
+def show_both(row, text):
+    """One line on the brain and the controller."""
+    brain.screen.clear_line(row)
+    brain.screen.set_cursor(row, 1)
+    brain.screen.print(text)
+    controller.screen.clear_line(row)
+    controller.screen.set_cursor(row, 1)
+    controller.screen.print(text)
+
+def read_side():
+    """+1 for the right arrow, -1 for the left, 0 for neither."""
+    if controller.buttonRight.pressing():
+        return 1
+    if controller.buttonLeft.pressing():
+        return -1
+    return 0
+
+def auto_on_button():
+    """Slot 2: arrow towards the goal starts autonomous, then the driver takes over."""
     arm_motor.reset_position()
+    brain.screen.clear_screen()
+    controller.screen.clear_screen()
+    show_both(1, "AUTO: < or > goal")
+    side = 0
+    while side == 0:
+        side = read_side()
+        wait(20, MSEC)
+    while read_side() != 0:
+        wait(20, MSEC)
+    set_auto_side(side)
+    show_both(1, "AUTO running")
+    autonomous()
+    show_both(1, "AUTO done")
+    user_control()
 
+def match():
+    """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
+    global competition
+    arm_motor.reset_position()
+    competition = Competition(user_control, autonomous)
+    brain.screen.clear_screen()
+    controller.screen.clear_screen()
+    show_both(1, "goal side: RIGHT >")
+    while not competition.is_enabled():
+        side = read_side()
+        if side != 0:
+            set_auto_side(side)
+            show_both(1, "goal side: RIGHT >" if side > 0 else "goal side: < LEFT")
+        wait(20, MSEC)
+
+
+# --- Mode ---
+
+def main():
     # scan_ports()
-
     # vision_report()
-
     # cone_detector()
-    # user_control()
-    test_autonomous()
-    # match()
     # turn_tuner()
+    match()
 
 main()

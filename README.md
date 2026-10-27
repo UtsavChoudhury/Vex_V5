@@ -78,21 +78,44 @@ blue, red/yellow for red). Each Alliance Quadrant has a low (82.5 mm) Alliance
 Goal about one tile (≈610 mm) out from the side wall and two tiles from the
 corner, which opponents may not touch.
 
-Setup: back bumpers on the wall, robot centred on that goal (line it up with the
-tile seam the goal sits on), preload Pin gripped upright in the claw. The same
-routine works for either Alliance and either Alliance Quadrant — it never turns.
+Cups and Pins sit against the wall in line with every goal, so the only clear
+start is the **middle of a side wall**, under the Toggle. From there the goal is
+about one tile out and one tile along. See `start_positions.png`.
+
+Setup: back bumpers on the wall, centred on the wall, preload Pin gripped upright
+in the claw, arm resting down.
 
 1. Seats both bumpers on the wall (`AUTO_SEAT_MS`; carries on either way).
-2. Arm to `AUTO_ARM_CARRY_DEG`, drives `AUTO_GOAL_MM` at `AUTO_GOAL_SPEED`.
-3. Arm down to `AUTO_ARM_PLACE_DEG`, opens the claw, arm back up, backs off.
+2. Arm to `AUTO_ARM_CARRY_DEG`, drives `AUTO_LEG1_MM` out from the wall.
+3. Turns 90° towards the goal (`AUTO_SIDE`, chosen with the arrow buttons).
+4. Drives `AUTO_LEG2_MM`, arm down to `AUTO_ARM_PLACE_DEG`, opens the claw, arm
+   back up, backs off.
+
+| Start | Goal is | Press |
+|---|---|---|
+| red, red Alliance Station wall | right | Right arrow |
+| red, other red wall | left | Left arrow |
+| blue, blue Alliance Station wall | right | Right arrow |
+| blue, other blue wall | left | Left arrow |
 
 The Pin's colour half scores 5 points and is usually enough to take the
 12-point Autonomous Bonus.
 
+### Slots
+
+`build.py` writes one file per slot; download each with VEXcode or `vexcom`.
+
+| Slot | Name | File | Does |
+|---|---|---|---|
+| 1 | Driver | `download_driver.py` | manual control |
+| 2 | Auto | `download_auto.py` | waits for Left/Right arrow, runs autonomous, then manual |
+| 3 | Match | `download.py` | competitions: arrow picks the side before the match, field control runs the rest |
+
 Tuning, in `user_control()` (the brain screen shows `arm` degrees):
 
-- `AUTO_GOAL_MM` = wall → goal centre minus wall → claw centre, with the robot
-  on the wall.
+- `AUTO_LEG1_MM` = wall → goal centre (out) minus wall → robot turning centre.
+- `AUTO_LEG2_MM` = middle of the wall → goal centre (along) minus turning centre
+  → claw centre. 90° accuracy matters here: run `turn_tuner()` first.
 - Raise the arm until the Pin clears the goal rim: `AUTO_ARM_CARRY_DEG`. Lower
   it until the Pin sits in the goal: `AUTO_ARM_PLACE_DEG`.
 - `AUTO_CLAW_OPEN_PCT`: positive if pushing the right stick right opens the

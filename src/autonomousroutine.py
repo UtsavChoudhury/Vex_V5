@@ -218,15 +218,25 @@ def open_claw():
     wait(AUTO_CLAW_OPEN_MS, MSEC)
     claw_motor.stop()
 
+AUTO_SIDE = 1               # +1 goal on the right, -1 on the left
+
+def set_auto_side(side):
+    """Called by the selector; lives here so the global is this module's."""
+    global AUTO_SIDE
+    AUTO_SIDE = side
+
 def autonomous():
-    """Override: preload pin into the alliance goal straight ahead. See README.md."""
+    """Override: mid-wall start, out a tile, turn to the alliance goal, place the preload."""
     manipulator_init()
-    arm_motor.reset_position()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
     square_to_wall(AUTO_SEAT_MS)
     arm_to(AUTO_ARM_CARRY_DEG)
-    drive(AUTO_GOAL_MM, AUTO_GOAL_SPEED)
+    drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
+    settle()
+    turn(90 * AUTO_SIDE)
+    settle()
+    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
     open_claw()

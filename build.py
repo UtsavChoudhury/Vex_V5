@@ -12,6 +12,9 @@ OUT = os.path.join(SRC, "download.py")
 # Dependency order: a module must come after the ones it reads from.
 MODULES = ["config", "vision", "autonomousroutine", "drivercontrol", "main"]
 
+# Extra builds for vexcom slots: (file, call replacing the final main()).
+VARIANTS = [("download_driver.py", "driver()"), ("download_auto.py", "auto_on_button()")]
+
 # `from config import *`, `from vision import cone_detector`, `import config`...
 LOCAL_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:%s)\b" % "|".join(MODULES))
 
@@ -59,6 +62,14 @@ def flatten():
     open(OUT, "w").write(source)
     print("build.py: wrote %s (%d lines) from %s"
           % (os.path.relpath(OUT, HERE), len(source.split("\n")), ", ".join(MODULES)))
+
+    # Same program with a fixed entry point, one per brain slot.
+    if not source.rstrip().endswith("\nmain()"):
+        sys.exit("build.py: main.py must end with main()")
+    for name, entry in VARIANTS:
+        path = os.path.join(SRC, name)
+        open(path, "w").write(source.rstrip()[:-len("main()")] + entry + "\n")
+        print("build.py: wrote %s (entry %s)" % (os.path.relpath(path, HERE), entry))
     print("build.py: now hit Download in VEXcode.")
 
 

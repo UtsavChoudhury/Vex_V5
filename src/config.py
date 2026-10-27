@@ -48,7 +48,9 @@ AUTO_ARM_SPEED = 40
 # Override preload autonomous. Arm degrees are absolute from where the arm sits
 # when autonomous starts; read them off the brain screen in user_control().
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
-AUTO_GOAL_MM = 230        # wall-squared start -> claw centred over the goal
+# Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
+AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
+AUTO_LEG2_MM = 250        # goal-along distance minus turning centre -> claw centre
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 150  # pin bottom clears the goal rim
 AUTO_ARM_PLACE_DEG = 60   # pin bottom inside the goal
