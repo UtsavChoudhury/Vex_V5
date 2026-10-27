@@ -61,9 +61,9 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
 
 
-# Back bumper switches, 3-wire ports B and C.
+# Back bumper switches, 3-wire ports B and E.
 bumper_b = Bumper(brain.three_wire_port.b)
-bumper_c = Bumper(brain.three_wire_port.c)
+bumper_e = Bumper(brain.three_wire_port.e)
 
 
 # --- Manipulator hardware ---
@@ -529,7 +529,7 @@ def run_path(path):
 
 def bumper_status(text):
     """Bumper state on brain row 1 and the controller, so a dead switch is obvious."""
-    line = "%s  B %s  C %s" % (text, bumper_b.pressing(), bumper_c.pressing())
+    line = "%s  B %s  E %s" % (text, bumper_b.pressing(), bumper_e.pressing())
     brain.screen.clear_line(1)
     brain.screen.set_cursor(1, 1)
     brain.screen.print(line)
@@ -545,7 +545,7 @@ def square_to_wall():
     left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
-    while not (bumper_b.pressing() and bumper_c.pressing()):
+    while not (bumper_b.pressing() and bumper_e.pressing()):
         if brain.timer.time(MSEC) - start > WALL_SQUARE_MAX_MS:
             left_motor.stop()
             right_motor.stop()

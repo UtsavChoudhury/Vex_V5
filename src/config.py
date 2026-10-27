@@ -54,9 +54,9 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
 
 
-# Back bumper switches, 3-wire ports B and C.
+# Back bumper switches, 3-wire ports B and E.
 bumper_b = Bumper(brain.three_wire_port.b)
-bumper_c = Bumper(brain.three_wire_port.c)
+bumper_e = Bumper(brain.three_wire_port.e)
 
 
 # --- Manipulator hardware ---
