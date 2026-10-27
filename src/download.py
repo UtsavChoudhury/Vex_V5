@@ -877,8 +877,8 @@ def main():
     # vision_report()
 
     # cone_detector()
-    # user_control()
-    autonomous()
+    user_control()
+    # autonomous()
     # turn_tuner()
 
 main()
