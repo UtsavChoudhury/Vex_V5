@@ -206,11 +206,18 @@ def release_arm():
     arm_motor.set_stopping(COAST)
     arm_motor.stop()
 
-def arm_to(degrees, speed=AUTO_ARM_SPEED):
+def arm_to(degrees, speed=AUTO_ARM_SPEED, wait=True):
     """Move the arm to an absolute position and hold it there."""
+    travel = abs(degrees - arm_motor.position(DEGREES))
+    dps = max(1.0, (speed / 100.0) * ARM_MAX_DPS)
     arm_motor.set_stopping(HOLD)
-    arm_motor.set_timeout(2000, MSEC)
-    arm_motor.spin_to_position(degrees, DEGREES, speed, PERCENT)
+    arm_motor.set_timeout(int((travel / dps) * 1000.0 * TIMEOUT_MARGIN) + TIMEOUT_FLOOR_MS, MSEC)
+    arm_motor.spin_to_position(degrees, DEGREES, speed, PERCENT, wait)
+
+def arm_wait():
+    """Block until an arm_to(..., wait=False) move finishes or times out."""
+    while arm_motor.is_spinning():
+        wait(10, MSEC)
 
 def open_claw():
     """Open the claw for a fixed time, so a stall can't hang autonomous."""
@@ -231,8 +238,10 @@ def autonomous():
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
     square_to_wall(AUTO_SEAT_MS)
-    arm_to(AUTO_ARM_CARRY_DEG)
+    # Lift during the first leg; it is the slowest part of the routine.
+    arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
+    arm_wait()
     settle()
     turn(90 * AUTO_SIDE)
     settle()

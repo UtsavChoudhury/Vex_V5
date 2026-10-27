@@ -30,7 +30,7 @@ EXTERNAL_GEAR_RATIO = 1.0     # motor revolutions per wheel revolution
 WHEEL_TRAVEL_MM = PI * WHEEL_DIAMETER_MM
 
 DRIVE_SCALE = 1.00
-TURN_SCALE = 1.00
+TURN_SCALE = 1.05        # field test: 90 was turning a little short
 
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
@@ -43,7 +43,8 @@ WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
-AUTO_ARM_SPEED = 40
+AUTO_ARM_SPEED = 80
+ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ deg
 
 # Override preload autonomous. Arm degrees are absolute from where the arm sits
 # when autonomous starts; read them off the brain screen in user_control().
@@ -52,8 +53,8 @@ AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
 AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
 AUTO_LEG2_MM = 250        # goal-along distance minus turning centre -> claw centre
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
-AUTO_ARM_CARRY_DEG = 150  # pin bottom clears the goal rim
-AUTO_ARM_PLACE_DEG = 60   # pin bottom inside the goal
+AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
+AUTO_ARM_PLACE_DEG = 600  # pin bottom inside the goal
 AUTO_CLAW_OPEN_PCT = 50   # sign = the claw direction that opens
 AUTO_CLAW_OPEN_MS = 400
 AUTO_BACKOFF_MM = 150
