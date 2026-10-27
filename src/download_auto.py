@@ -996,6 +996,7 @@ def main():
     # vision_report()
     # cone_detector()
     # turn_tuner()
-    match()
+    # match()
+    driver()
 
 auto_on_button()
