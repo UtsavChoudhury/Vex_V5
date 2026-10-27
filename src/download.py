@@ -69,7 +69,7 @@ bumper_e = Bumper(brain.three_wire_port.e)
 # --- Manipulator hardware ---
 
 ARM_PORT = Ports.PORT10
-CLAW_PORT = Ports.PORT15
+CLAW_PORT = Ports.PORT4
 
 ARM_INVERT = False
 CLAW_INVERT = False
@@ -141,7 +141,7 @@ ARM_MAX_DEG = 900.0
 
 # --- AI Vision ---
 
-AI_VISION_PORT = Ports.PORT4     # <-- set to the port the sensor is plugged into
+AI_VISION_PORT = Ports.PORT15    # <-- set to the port the sensor is plugged into
 
 BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
 YELLOW_CONE_ID = 2               # colour "yellowcone"

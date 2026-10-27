@@ -24,9 +24,9 @@ every change.
 |------|--------|
 | 1 | right drive motor (green 18:1) |
 | 2 | left drive motor (green 18:1) |
-| 4 | AI Vision sensor |
+| 4 | claw motor (red 36:1) |
 | 10 | arm motor (red 36:1) |
-| 15 | claw motor (red 36:1) |
+| 15 | AI Vision sensor |
 | 3-wire B, E | back bumper switches |
 | 9 | VEXnet radio — managed by brain firmware, never declared in code |
 
