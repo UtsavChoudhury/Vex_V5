@@ -62,13 +62,43 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
 | `user_control()` | normal driving |
-| `autonomous()` | square on the wall, lift arm, drive the S→A→B path, release arm |
+| `test_autonomous()` | runs `autonomous()` immediately on Run, then driver control |
+| `match()` | **competitions** — field control picks `autonomous()` or `user_control()` |
 | `turn_tuner()` | on-robot turn calibration |
 
-Field control switches between `autonomous()` and `user_control()` at a real
-competition; until then, choose here.
+`main()` zeroes the arm encoder, so always start a program with the arm resting
+down.
 
-## Autonomous
+## Autonomous (Override)
+
+From the Override game manual (`<SG1>`, `<SG5>`, `<SG9>`): start touching the
+perimeter on your side of the Autonomous Line, in your own Quadrant, not touching
+a Goal, Toggle, Loader or Load Zone, holding one Preload (blue/yellow Pin for
+blue, red/yellow for red). Each Alliance Quadrant has a low (82.5 mm) Alliance
+Goal about one tile (≈610 mm) out from the side wall and two tiles from the
+corner, which opponents may not touch.
+
+Setup: back bumpers on the wall, robot centred on that goal (line it up with the
+tile seam the goal sits on), preload Pin gripped upright in the claw. The same
+routine works for either Alliance and either Alliance Quadrant — it never turns.
+
+1. Seats both bumpers on the wall (`AUTO_SEAT_MS`; carries on either way).
+2. Arm to `AUTO_ARM_CARRY_DEG`, drives `AUTO_GOAL_MM` at `AUTO_GOAL_SPEED`.
+3. Arm down to `AUTO_ARM_PLACE_DEG`, opens the claw, arm back up, backs off.
+
+The Pin's colour half scores 5 points and is usually enough to take the
+12-point Autonomous Bonus.
+
+Tuning, in `user_control()` (the brain screen shows `arm` degrees):
+
+- `AUTO_GOAL_MM` = wall → goal centre minus wall → claw centre, with the robot
+  on the wall.
+- Raise the arm until the Pin clears the goal rim: `AUTO_ARM_CARRY_DEG`. Lower
+  it until the Pin sits in the goal: `AUTO_ARM_PLACE_DEG`.
+- `AUTO_CLAW_OPEN_PCT`: positive if pushing the right stick right opens the
+  claw, negative if it closes it.
+
+`autonomous_s_path()` is the old S→A→B test path below.
 
 ```
 A - - - B

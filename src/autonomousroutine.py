@@ -175,7 +175,7 @@ def bumper_status(text):
     controller.screen.set_cursor(1, 1)
     controller.screen.print(line)
 
-def square_to_wall():
+def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
     """Back up until both bumpers are pressed. False if the wall never arrives."""
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
@@ -184,7 +184,7 @@ def square_to_wall():
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
     while not (bumper_b.pressing() and bumper_e.pressing()):
-        if brain.timer.time(MSEC) - start > WALL_SQUARE_MAX_MS:
+        if brain.timer.time(MSEC) - start > max_ms:
             left_motor.stop()
             right_motor.stop()
             bumper_status("NO WALL")
@@ -206,8 +206,35 @@ def release_arm():
     arm_motor.set_stopping(COAST)
     arm_motor.stop()
 
+def arm_to(degrees, speed=AUTO_ARM_SPEED):
+    """Move the arm to an absolute position and hold it there."""
+    arm_motor.set_stopping(HOLD)
+    arm_motor.set_timeout(2000, MSEC)
+    arm_motor.spin_to_position(degrees, DEGREES, speed, PERCENT)
+
+def open_claw():
+    """Open the claw for a fixed time, so a stall can't hang autonomous."""
+    claw_motor.spin(FORWARD, AUTO_CLAW_OPEN_PCT, PERCENT)
+    wait(AUTO_CLAW_OPEN_MS, MSEC)
+    claw_motor.stop()
+
 def autonomous():
-    """S -> wall square -> lift arm -> A -> turn right -> B -> release arm. See README.md."""
+    """Override: preload pin into the alliance goal straight ahead. See README.md."""
+    manipulator_init()
+    arm_motor.reset_position()
+    claw_motor.stop()
+    # Already on the wall by the start rule; this only seats it square.
+    square_to_wall(AUTO_SEAT_MS)
+    arm_to(AUTO_ARM_CARRY_DEG)
+    drive(AUTO_GOAL_MM, AUTO_GOAL_SPEED)
+    settle()
+    arm_to(AUTO_ARM_PLACE_DEG)
+    open_claw()
+    arm_to(AUTO_ARM_CARRY_DEG)
+    drive(-AUTO_BACKOFF_MM, AUTO_GOAL_SPEED)
+
+def autonomous_s_path():
+    """S -> wall square -> lift arm -> A -> turn right -> B -> release arm."""
     manipulator_init()
     if not square_to_wall():
         return
