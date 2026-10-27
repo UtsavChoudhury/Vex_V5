@@ -39,10 +39,8 @@ AUTO_LEG_MM = 1000        # S->A and A->B
 AUTO_TURN_DEG = 90        # positive = right
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
-WALL_SQUARE_MIN_MS = 400  # before checking for a stall
-WALL_SQUARE_PUSH_MS = 300 # keep pushing once stopped, so both sides seat
-WALL_SQUARE_MAX_MS = 2500
-WALL_STALL_PCT = 5        # both sides below this velocity = against the wall
+WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides seat
+WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
 AUTO_ARM_SPEED = 40
@@ -54,6 +52,11 @@ TIMEOUT_FLOOR_MS = 1000   # ...plus this, to cover acceleration on short moves
 
 dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
+
+
+# Back bumper switches, 3-wire ports B and C.
+bumper_b = Bumper(brain.three_wire_port.b)
+bumper_c = Bumper(brain.three_wire_port.c)
 
 
 # --- Manipulator hardware ---

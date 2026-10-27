@@ -165,23 +165,36 @@ def run_path(path):
 
 # --- Routine ---
 
+def bumper_status(text):
+    """Bumper state on brain row 1 and the controller, so a dead switch is obvious."""
+    line = "%s  B %s  C %s" % (text, bumper_b.pressing(), bumper_c.pressing())
+    brain.screen.clear_line(1)
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print(line)
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print(line)
+
 def square_to_wall():
-    """Back into the wall until both sides stall, push a moment longer, then stop."""
+    """Back up until both bumpers are pressed. False if the wall never arrives."""
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
+    bumper_status("wall")
     left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
-    while brain.timer.time(MSEC) - start < WALL_SQUARE_MAX_MS:
-        wait(20, MSEC)
-        if brain.timer.time(MSEC) - start < WALL_SQUARE_MIN_MS:
-            continue
-        if (abs(left_motor.velocity(PERCENT)) < WALL_STALL_PCT and
-                abs(right_motor.velocity(PERCENT)) < WALL_STALL_PCT):
-            wait(WALL_SQUARE_PUSH_MS, MSEC)
-            break
+    while not (bumper_b.pressing() and bumper_c.pressing()):
+        if brain.timer.time(MSEC) - start > WALL_SQUARE_MAX_MS:
+            left_motor.stop()
+            right_motor.stop()
+            bumper_status("NO WALL")
+            return False
+        wait(10, MSEC)
+    wait(WALL_SQUARE_PUSH_MS, MSEC)
     left_motor.stop()
     right_motor.stop()
+    bumper_status("square")
+    return True
 
 def lift_arm(degrees=AUTO_ARM_LIFT_DEG, speed=AUTO_ARM_SPEED):
     """Raise the arm by motor degrees and hold it there."""
@@ -196,7 +209,8 @@ def release_arm():
 def autonomous():
     """S -> wall square -> lift arm -> A -> turn right -> B -> release arm. See README.md."""
     manipulator_init()
-    square_to_wall()
+    if not square_to_wall():
+        return
     settle()
     lift_arm()
     drive(AUTO_LEG_MM)

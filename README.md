@@ -27,6 +27,7 @@ every change.
 | 4 | AI Vision sensor |
 | 10 | arm motor (red 36:1) |
 | 15 | claw motor (red 36:1) |
+| 3-wire B, C | back bumper switches |
 | 9 | VEXnet radio — managed by brain firmware, never declared in code |
 
 Set `INVERT_DRIVE` in `src/config.py` if the robot drives backward when you push
@@ -78,9 +79,13 @@ S
 
 Start at S with the back bumper towards the wall and the nose pointing at A.
 
-1. `square_to_wall()` backs into the wall at `WALL_SQUARE_SPEED` until both
-   drive motors stall, pushes `WALL_SQUARE_PUSH_MS` longer so both sides seat,
-   then stops. Gives up after `WALL_SQUARE_MAX_MS`.
+1. `square_to_wall()` backs into the wall at `WALL_SQUARE_SPEED` until **both**
+   back bumper switches (3-wire ports B and C) are pressed, pushes
+   `WALL_SQUARE_PUSH_MS` longer, then stops. Both sides keep driving while only
+   one bumper is in, so the robot swings flat against the wall. Nothing else
+   runs until both are pressed; if that hasn't happened within
+   `WALL_SQUARE_MAX_MS` it stops and skips the rest of autonomous. The brain and
+   controller show `B`/`C` bumper state and `square` or `NO WALL`.
 2. `lift_arm()` raises the arm `AUTO_ARM_LIFT_DEG` motor degrees and holds.
 3. Drives `AUTO_LEG_MM` (1 m) to A.
 4. Turns `AUTO_TURN_DEG` (90, right) in place.

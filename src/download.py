@@ -46,10 +46,8 @@ AUTO_LEG_MM = 1000        # S->A and A->B
 AUTO_TURN_DEG = 90        # positive = right
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
-WALL_SQUARE_MIN_MS = 400  # before checking for a stall
-WALL_SQUARE_PUSH_MS = 300 # keep pushing once stopped, so both sides seat
-WALL_SQUARE_MAX_MS = 2500
-WALL_STALL_PCT = 5        # both sides below this velocity = against the wall
+WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides seat
+WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
 AUTO_ARM_SPEED = 40
@@ -61,6 +59,11 @@ TIMEOUT_FLOOR_MS = 1000   # ...plus this, to cover acceleration on short moves
 
 dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
+
+
+# Back bumper switches, 3-wire ports B and C.
+bumper_b = Bumper(brain.three_wire_port.b)
+bumper_c = Bumper(brain.three_wire_port.c)
 
 
 # --- Manipulator hardware ---
@@ -524,23 +527,36 @@ def run_path(path):
 
 # --- Routine ---
 
+def bumper_status(text):
+    """Bumper state on brain row 1 and the controller, so a dead switch is obvious."""
+    line = "%s  B %s  C %s" % (text, bumper_b.pressing(), bumper_c.pressing())
+    brain.screen.clear_line(1)
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print(line)
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print(line)
+
 def square_to_wall():
-    """Back into the wall until both sides stall, push a moment longer, then stop."""
+    """Back up until both bumpers are pressed. False if the wall never arrives."""
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
+    bumper_status("wall")
     left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
-    while brain.timer.time(MSEC) - start < WALL_SQUARE_MAX_MS:
-        wait(20, MSEC)
-        if brain.timer.time(MSEC) - start < WALL_SQUARE_MIN_MS:
-            continue
-        if (abs(left_motor.velocity(PERCENT)) < WALL_STALL_PCT and
-                abs(right_motor.velocity(PERCENT)) < WALL_STALL_PCT):
-            wait(WALL_SQUARE_PUSH_MS, MSEC)
-            break
+    while not (bumper_b.pressing() and bumper_c.pressing()):
+        if brain.timer.time(MSEC) - start > WALL_SQUARE_MAX_MS:
+            left_motor.stop()
+            right_motor.stop()
+            bumper_status("NO WALL")
+            return False
+        wait(10, MSEC)
+    wait(WALL_SQUARE_PUSH_MS, MSEC)
     left_motor.stop()
     right_motor.stop()
+    bumper_status("square")
+    return True
 
 def lift_arm(degrees=AUTO_ARM_LIFT_DEG, speed=AUTO_ARM_SPEED):
     """Raise the arm by motor degrees and hold it there."""
@@ -555,7 +571,8 @@ def release_arm():
 def autonomous():
     """S -> wall square -> lift arm -> A -> turn right -> B -> release arm. See README.md."""
     manipulator_init()
-    square_to_wall()
+    if not square_to_wall():
+        return
     settle()
     lift_arm()
     drive(AUTO_LEG_MM)
