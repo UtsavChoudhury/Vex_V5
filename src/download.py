@@ -164,7 +164,9 @@ ARM_MIN_DEG = 0.0
 ARM_MAX_DEG = 1025.0      # measured top is 1040; keep a margin
 
 ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees of travel
-ARM_HOME_SPEED = 30      # percent, lowering onto the switch
+ARM_TORQUE = 50           # percent of max; a stalled arm can't twist a rod this hard
+ARM_HOME_TORQUE = 30
+ARM_HOME_SPEED = 30     # percent, lowering onto the switch
 ARM_HOME_MAX_MS = 10000   # no switch by then = give up
 
 
@@ -228,6 +230,7 @@ def home_arm():
     while controller.buttonA.pressing():
         wait(20, MSEC)
     arm_motor.set_stopping(HOLD)
+    arm_motor.set_max_torque(ARM_HOME_TORQUE, PERCENT)
     if not arm_switch.pressing():
         say("arm homing...")
         arm_motor.spin(REVERSE, ARM_HOME_SPEED, PERCENT)
@@ -249,6 +252,7 @@ def home_arm():
 def manipulator_init():
     """Put the arm and claw in their start-of-match state. HOLD stops them creeping."""
     arm_motor.set_stopping(HOLD)
+    arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
     claw_motor.set_stopping(HOLD)
     claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
 
