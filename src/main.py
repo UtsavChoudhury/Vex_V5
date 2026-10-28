@@ -13,7 +13,7 @@ from vision import cone_detector, vision_report, find_cone, scan_ports
 
 def driver():
     """Slot 1: manual control only."""
-    arm_motor.reset_position()
+    home_arm()
     user_control()
 
 def show_both(row, text):
@@ -35,7 +35,7 @@ def read_side():
 
 def auto_on_button():
     """Slot 2: arrow towards the goal starts autonomous, then the driver takes over."""
-    arm_motor.reset_position()
+    home_arm()
     brain.screen.clear_screen()
     controller.screen.clear_screen()
     show_both(1, "AUTO: < or > goal")
@@ -54,7 +54,7 @@ def auto_on_button():
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
     global competition
-    arm_motor.reset_position()
+    home_arm()
     competition = Competition(user_control, autonomous)
     brain.screen.clear_screen()
     controller.screen.clear_screen()

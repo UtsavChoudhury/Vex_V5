@@ -87,6 +87,9 @@ probe_f = Bumper(brain.three_wire_port.f)
 probe_g = Bumper(brain.three_wire_port.g)
 probe_h = Bumper(brain.three_wire_port.h)
 
+# Pressed when the arm is fully down.
+arm_switch = probe_g
+
 
 # --- Manipulator hardware ---
 
@@ -156,9 +159,12 @@ CLAW_TORQUE = 100
 # Prints the claw stick and motor load to the brain screen. Turn off for comp.
 CLAW_DIAGNOSTIC = True
 
-ARM_USE_LIMITS = False
+ARM_USE_LIMITS = True
 ARM_MIN_DEG = 0.0
-ARM_MAX_DEG = 900.0
+ARM_MAX_DEG = 1025.0      # measured top is 1040; keep a margin
+
+ARM_HOME_SPEED = 30       # percent, lowering onto the switch
+ARM_HOME_MAX_MS = 10000   # no switch by then = give up
 
 
 # --- AI Vision ---
@@ -201,6 +207,43 @@ VISION_MAX_OBJECTS = 8
 
 
 # --- Shared setup ---
+
+arm_state = {"homed": False}
+
+def say(text):
+    """One line on the brain and the controller."""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print(text)
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print(text)
+
+def home_arm():
+    """Wait for A, lower the arm onto the switch and call that 0. False if it never arrives."""
+    say("ARM HOME: clear? A")
+    while not controller.buttonA.pressing():
+        wait(20, MSEC)
+    while controller.buttonA.pressing():
+        wait(20, MSEC)
+    arm_motor.set_stopping(HOLD)
+    if not arm_switch.pressing():
+        say("arm homing...")
+        arm_motor.spin(REVERSE, ARM_HOME_SPEED, PERCENT)
+        start = brain.timer.time(MSEC)
+        while not arm_switch.pressing():
+            if brain.timer.time(MSEC) - start > ARM_HOME_MAX_MS:
+                arm_motor.stop()
+                arm_state["homed"] = False
+                say("ARM HOME FAILED")
+                return False
+            wait(10, MSEC)
+    arm_motor.stop()
+    wait(100, MSEC)
+    arm_motor.reset_position()
+    arm_state["homed"] = True
+    say("arm homed")
+    return True
 
 def manipulator_init():
     """Put the arm and claw in their start-of-match state. HOLD stops them creeping."""
@@ -592,6 +635,7 @@ def release_arm():
 
 def arm_to(degrees, speed=AUTO_ARM_SPEED, wait=True):
     """Move the arm to an absolute position and hold it there."""
+    degrees = max(ARM_MIN_DEG, min(ARM_MAX_DEG, degrees))
     travel = abs(degrees - arm_motor.position(DEGREES))
     dps = max(1.0, (speed / 100.0) * ARM_MAX_DPS)
     arm_motor.set_stopping(HOLD)
@@ -916,11 +960,13 @@ def user_control():
         arm_power = slew(arm_power, arm_target, ARM_ACCEL_STEP, ARM_DECEL_STEP)
 
         # Refuse to drive further into a limit, but always allow coming back.
-        if ARM_USE_LIMITS:
-            arm_position = arm_motor.position(DEGREES)
-            if arm_position <= ARM_MIN_DEG and arm_power < 0:
+        # The switch is the real bottom; it re-zeros every time it is touched.
+        if arm_switch.pressing():
+            arm_motor.reset_position()
+            if arm_power < 0:
                 arm_power = 0.0
-            elif arm_position >= ARM_MAX_DEG and arm_power > 0:
+        elif ARM_USE_LIMITS and arm_state["homed"]:
+            if arm_motor.position(DEGREES) >= ARM_MAX_DEG and arm_power > 0:
                 arm_power = 0.0
 
         claw_power = claw_raw * CLAW_SPEED
@@ -949,7 +995,7 @@ def user_control():
 
 def driver():
     """Slot 1: manual control only."""
-    arm_motor.reset_position()
+    home_arm()
     user_control()
 
 def show_both(row, text):
@@ -971,7 +1017,7 @@ def read_side():
 
 def auto_on_button():
     """Slot 2: arrow towards the goal starts autonomous, then the driver takes over."""
-    arm_motor.reset_position()
+    home_arm()
     brain.screen.clear_screen()
     controller.screen.clear_screen()
     show_both(1, "AUTO: < or > goal")
@@ -990,7 +1036,7 @@ def auto_on_button():
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
     global competition
-    arm_motor.reset_position()
+    home_arm()
     competition = Competition(user_control, autonomous)
     brain.screen.clear_screen()
     controller.screen.clear_screen()

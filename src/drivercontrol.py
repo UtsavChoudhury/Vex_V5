@@ -263,11 +263,13 @@ def user_control():
         arm_power = slew(arm_power, arm_target, ARM_ACCEL_STEP, ARM_DECEL_STEP)
 
         # Refuse to drive further into a limit, but always allow coming back.
-        if ARM_USE_LIMITS:
-            arm_position = arm_motor.position(DEGREES)
-            if arm_position <= ARM_MIN_DEG and arm_power < 0:
+        # The switch is the real bottom; it re-zeros every time it is touched.
+        if arm_switch.pressing():
+            arm_motor.reset_position()
+            if arm_power < 0:
                 arm_power = 0.0
-            elif arm_position >= ARM_MAX_DEG and arm_power > 0:
+        elif ARM_USE_LIMITS and arm_state["homed"]:
+            if arm_motor.position(DEGREES) >= ARM_MAX_DEG and arm_power > 0:
                 arm_power = 0.0
 
         claw_power = claw_raw * CLAW_SPEED

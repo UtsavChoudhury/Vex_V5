@@ -208,6 +208,7 @@ def release_arm():
 
 def arm_to(degrees, speed=AUTO_ARM_SPEED, wait=True):
     """Move the arm to an absolute position and hold it there."""
+    degrees = max(ARM_MIN_DEG, min(ARM_MAX_DEG, degrees))
     travel = abs(degrees - arm_motor.position(DEGREES))
     dps = max(1.0, (speed / 100.0) * ARM_MAX_DPS)
     arm_motor.set_stopping(HOLD)

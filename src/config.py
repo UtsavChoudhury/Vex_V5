@@ -80,6 +80,9 @@ probe_f = Bumper(brain.three_wire_port.f)
 probe_g = Bumper(brain.three_wire_port.g)
 probe_h = Bumper(brain.three_wire_port.h)
 
+# Pressed when the arm is fully down.
+arm_switch = probe_g
+
 
 # --- Manipulator hardware ---
 
@@ -149,9 +152,12 @@ CLAW_TORQUE = 100
 # Prints the claw stick and motor load to the brain screen. Turn off for comp.
 CLAW_DIAGNOSTIC = True
 
-ARM_USE_LIMITS = False
+ARM_USE_LIMITS = True
 ARM_MIN_DEG = 0.0
-ARM_MAX_DEG = 900.0
+ARM_MAX_DEG = 1025.0      # measured top is 1040; keep a margin
+
+ARM_HOME_SPEED = 30       # percent, lowering onto the switch
+ARM_HOME_MAX_MS = 10000   # no switch by then = give up
 
 
 # --- AI Vision ---
@@ -194,6 +200,43 @@ VISION_MAX_OBJECTS = 8
 
 
 # --- Shared setup ---
+
+arm_state = {"homed": False}
+
+def say(text):
+    """One line on the brain and the controller."""
+    brain.screen.clear_screen()
+    brain.screen.set_cursor(1, 1)
+    brain.screen.print(text)
+    controller.screen.clear_screen()
+    controller.screen.set_cursor(1, 1)
+    controller.screen.print(text)
+
+def home_arm():
+    """Wait for A, lower the arm onto the switch and call that 0. False if it never arrives."""
+    say("ARM HOME: clear? A")
+    while not controller.buttonA.pressing():
+        wait(20, MSEC)
+    while controller.buttonA.pressing():
+        wait(20, MSEC)
+    arm_motor.set_stopping(HOLD)
+    if not arm_switch.pressing():
+        say("arm homing...")
+        arm_motor.spin(REVERSE, ARM_HOME_SPEED, PERCENT)
+        start = brain.timer.time(MSEC)
+        while not arm_switch.pressing():
+            if brain.timer.time(MSEC) - start > ARM_HOME_MAX_MS:
+                arm_motor.stop()
+                arm_state["homed"] = False
+                say("ARM HOME FAILED")
+                return False
+            wait(10, MSEC)
+    arm_motor.stop()
+    wait(100, MSEC)
+    arm_motor.reset_position()
+    arm_state["homed"] = True
+    say("arm homed")
+    return True
 
 def manipulator_init():
     """Put the arm and claw in their start-of-match state. HOLD stops them creeping."""
