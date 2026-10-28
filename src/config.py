@@ -156,7 +156,8 @@ ARM_USE_LIMITS = True
 ARM_MIN_DEG = 0.0
 ARM_MAX_DEG = 1025.0      # measured top is 1040; keep a margin
 
-ARM_HOME_SPEED = 30       # percent, lowering onto the switch
+ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees of travel
+ARM_HOME_SPEED = 30      # percent, lowering onto the switch
 ARM_HOME_MAX_MS = 10000   # no switch by then = give up
 
 

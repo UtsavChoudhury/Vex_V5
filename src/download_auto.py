@@ -163,7 +163,8 @@ ARM_USE_LIMITS = True
 ARM_MIN_DEG = 0.0
 ARM_MAX_DEG = 1025.0      # measured top is 1040; keep a margin
 
-ARM_HOME_SPEED = 30       # percent, lowering onto the switch
+ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees of travel
+ARM_HOME_SPEED = 30      # percent, lowering onto the switch
 ARM_HOME_MAX_MS = 10000   # no switch by then = give up
 
 
@@ -961,17 +962,25 @@ def user_control():
 
         # Refuse to drive further into a limit, but always allow coming back.
         # The switch is the real bottom; it re-zeros every time it is touched.
+        arm_at_top = False
         if arm_switch.pressing():
             arm_motor.reset_position()
             if arm_power < 0:
                 arm_power = 0.0
-        elif ARM_USE_LIMITS and arm_state["homed"]:
-            if arm_motor.position(DEGREES) >= ARM_MAX_DEG and arm_power > 0:
+        elif ARM_USE_LIMITS and arm_state["homed"] and arm_power > 0:
+            remaining = ARM_MAX_DEG - arm_motor.position(DEGREES)
+            if remaining <= 0:
                 arm_power = 0.0
+                arm_at_top = True
+            elif remaining < ARM_SLOW_ZONE_DEG:
+                arm_power = min(arm_power, max(8.0, 100.0 * ARM_SPEED * remaining / ARM_SLOW_ZONE_DEG))
 
         claw_power = claw_raw * CLAW_SPEED
 
-        arm_motor.spin(FORWARD, arm_power, PERCENT)
+        if arm_at_top:
+            arm_motor.stop()    # HOLD brakes; spin at 0 would coast
+        else:
+            arm_motor.spin(FORWARD, arm_power, PERCENT)
         claw_motor.spin(FORWARD, claw_power, PERCENT)
 
         if CLAW_DIAGNOSTIC:
