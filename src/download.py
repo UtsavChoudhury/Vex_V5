@@ -79,6 +79,14 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
 bumper_b = Bumper(brain.three_wire_port.b)
 bumper_e = Bumper(brain.three_wire_port.e)
 
+# Every 3-wire port, so a new switch can be found by pressing it. See show_claw_diagnostic().
+probe_a = Bumper(brain.three_wire_port.a)
+probe_c = Bumper(brain.three_wire_port.c)
+probe_d = Bumper(brain.three_wire_port.d)
+probe_f = Bumper(brain.three_wire_port.f)
+probe_g = Bumper(brain.three_wire_port.g)
+probe_h = Bumper(brain.three_wire_port.h)
+
 
 # --- Manipulator hardware ---
 
@@ -694,6 +702,12 @@ def show_claw_diagnostic(stick, power):
     brain.screen.clear_line(4)
     brain.screen.print("claw stick %d  pwr %d  arm %d" % (int(stick), int(power),
                                                          int(arm_motor.position(DEGREES))))
+    brain.screen.set_cursor(7, 1)
+    brain.screen.clear_line(7)
+    brain.screen.print("A%d B%d C%d D%d E%d F%d G%d H%d" % (
+        probe_a.pressing(), bumper_b.pressing(), probe_c.pressing(),
+        probe_d.pressing(), bumper_e.pressing(), probe_f.pressing(),
+        probe_g.pressing(), probe_h.pressing()))
     brain.screen.set_cursor(5, 1)
     brain.screen.clear_line(5)
     try:
@@ -997,7 +1011,7 @@ def main():
     # cone_detector()
     # turn_tuner()
     # match()
-    # driver()
-    auto_on_button()
+    driver()
+    # auto_on_button()
 
 main()

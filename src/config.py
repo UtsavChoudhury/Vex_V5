@@ -72,6 +72,14 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
 bumper_b = Bumper(brain.three_wire_port.b)
 bumper_e = Bumper(brain.three_wire_port.e)
 
+# Every 3-wire port, so a new switch can be found by pressing it. See show_claw_diagnostic().
+probe_a = Bumper(brain.three_wire_port.a)
+probe_c = Bumper(brain.three_wire_port.c)
+probe_d = Bumper(brain.three_wire_port.d)
+probe_f = Bumper(brain.three_wire_port.f)
+probe_g = Bumper(brain.three_wire_port.g)
+probe_h = Bumper(brain.three_wire_port.h)
+
 
 # --- Manipulator hardware ---
 

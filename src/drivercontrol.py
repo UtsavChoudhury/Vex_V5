@@ -49,6 +49,12 @@ def show_claw_diagnostic(stick, power):
     brain.screen.clear_line(4)
     brain.screen.print("claw stick %d  pwr %d  arm %d" % (int(stick), int(power),
                                                          int(arm_motor.position(DEGREES))))
+    brain.screen.set_cursor(7, 1)
+    brain.screen.clear_line(7)
+    brain.screen.print("A%d B%d C%d D%d E%d F%d G%d H%d" % (
+        probe_a.pressing(), bumper_b.pressing(), probe_c.pressing(),
+        probe_d.pressing(), bumper_e.pressing(), probe_f.pressing(),
+        probe_g.pressing(), probe_h.pressing()))
     brain.screen.set_cursor(5, 1)
     brain.screen.clear_line(5)
     try:
