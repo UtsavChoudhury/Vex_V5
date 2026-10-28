@@ -93,8 +93,8 @@ probe_h = Bumper(brain.three_wire_port.h)
 ARM_PORT = Ports.PORT10
 CLAW_PORT = Ports.PORT4
 
-ARM_INVERT = False
-CLAW_INVERT = False
+ARM_INVERT = True
+CLAW_INVERT = True
 
 arm_motor = Motor(ARM_PORT, GearSetting.RATIO_36_1, ARM_INVERT)
 claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
