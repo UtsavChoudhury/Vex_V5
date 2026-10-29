@@ -5,15 +5,15 @@ from vex import *
 from config import *
 from autonomousroutine import autonomous, autonomous_s_path, set_auto_side, turn_tuner, drive, turn
 from drivercontrol import user_control
-from vision import cone_detector, vision_report, find_cone, scan_ports
+from vision import cone_detector, vision_report, find_cone, scan_ports, tag_report
 
 
 # --- Programs ---
-# Arm degrees count from program start, so always start with the arm resting down.
+# Arm degrees count from where confirm_arm_zero() is answered.
 
 def driver():
     """Slot 1: manual control only."""
-    home_arm()
+    confirm_arm_zero()
     user_control()
 
 def show_both(row, text):
@@ -35,7 +35,7 @@ def read_side():
 
 def auto_on_button():
     """Slot 2: arrow towards the goal starts autonomous, then the driver takes over."""
-    home_arm()
+    confirm_arm_zero()
     brain.screen.clear_screen()
     controller.screen.clear_screen()
     show_both(1, "AUTO: < or > goal")
@@ -54,7 +54,7 @@ def auto_on_button():
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
     global competition
-    home_arm()
+    confirm_arm_zero()
     competition = Competition(user_control, autonomous)
     brain.screen.clear_screen()
     controller.screen.clear_screen()
@@ -71,6 +71,7 @@ def match():
 
 def main():
     # scan_ports()
+    # tag_report()
     # vision_report()
     # cone_detector()
     # turn_tuner()

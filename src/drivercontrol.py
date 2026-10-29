@@ -43,26 +43,27 @@ def fit_turn(forward, turn, priority):
     allowed = wanted + (room - wanted) * priority
     return allowed if turn >= 0 else -allowed
 
-def show_claw_diagnostic(stick, power):
-    """Print claw stick position and motor load to the brain screen."""
-    brain.screen.set_cursor(4, 1)
-    brain.screen.clear_line(4)
-    brain.screen.print("claw stick %d  pwr %d  arm %d" % (int(stick), int(power),
-                                                         int(arm_motor.position(DEGREES))))
-    brain.screen.set_cursor(7, 1)
-    brain.screen.clear_line(7)
-    brain.screen.print("A%d B%d C%d D%d E%d F%d G%d H%d" % (
-        probe_a.pressing(), bumper_b.pressing(), probe_c.pressing(),
-        probe_d.pressing(), bumper_e.pressing(), probe_f.pressing(),
-        probe_g.pressing(), probe_h.pressing()))
-    brain.screen.set_cursor(5, 1)
-    brain.screen.clear_line(5)
+def screen_line(row, text):
+    brain.screen.clear_line(row)
+    brain.screen.set_cursor(row, 1)
+    brain.screen.print(text)
+
+def show_motor_diagnostic(arm_note):
+    """Every motor's rotation, the arm's load and the bumpers, on the brain screen."""
     try:
-        brain.screen.print("amps %.2f  temp %d%%" % (claw_motor.current(),
-                                                     claw_motor.temperature()))
+        arm_deg = arm_motor.position(DEGREES)
+        screen_line(3, "L drive %6d deg   R drive %6d deg" % (
+            left_motor.position(DEGREES), right_motor.position(DEGREES)))
+        screen_line(4, "ARM %5d deg  %.2f rev  %4d dps" % (
+            arm_deg, arm_deg / 360.0, arm_motor.velocity(DPS)))
+        screen_line(5, "arm %.2f A  %s%s" % (
+            arm_motor.current(), arm_note, "" if arm_state["homed"] else "  NOT ZEROED"))
+        screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
+        screen_line(7, "bump C%d E%d F%d   slips %d  (X = re-zero arm)" % (
+            bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing(), arm_state["slips"]))
     except:
         # Never let a diagnostic take the drive down mid-match.
-        brain.screen.print("amps n/a on this SDK")
+        screen_line(5, "diagnostic error")
 
 
 # --- Cone assist ---
@@ -162,7 +163,7 @@ def user_control():
     brain.screen.clear_screen()
     brain.screen.print("Slow Drive / Fast Turn")
     brain.screen.next_row()
-    brain.screen.print("L=port2  R=port1  invert=" + str(INVERT_DRIVE))
+    brain.screen.print("L=port6  R=port4  invert=" + str(INVERT_DRIVE))
 
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
@@ -176,8 +177,21 @@ def user_control():
     diag_tick = 0
     was_left = False
     was_right = False
+    stall_since = None
+    stalled = False
+    last_arm_power = 0.0
+    avg_amps = 0.0
+    arm_note = ""
 
     while True:
+        if controller.buttonX.pressing():
+            while controller.buttonX.pressing():
+                wait(20, MSEC)
+            find_arm_bottom()
+            brain.screen.clear_screen()
+            arm_power = 0.0
+            stalled = False
+
         # Edge-triggered so a button held through cancelling doesn't restart it.
         left_now = controller.buttonLeft.pressing()
         right_now = controller.buttonRight.pressing()
@@ -262,33 +276,66 @@ def user_control():
         arm_target = ((arm_raw * abs(arm_raw)) / 100.0) * ARM_SPEED
         arm_power = slew(arm_power, arm_target, ARM_ACCEL_STEP, ARM_DECEL_STEP)
 
-        # Refuse to drive further into a limit, but always allow coming back.
-        # The switch is the real bottom; it re-zeros every time it is touched.
-        arm_at_top = False
-        if arm_switch.pressing():
-            arm_motor.reset_position()
-            if arm_power < 0:
+        # Refuse to drive further into either end, taper near them, always allow coming back.
+        arm_hold = False
+        arm_deg = arm_motor.position(DEGREES)
+        if ARM_USE_LIMITS and arm_state["homed"] and arm_power != 0:
+            if arm_power > 0:
+                room = ARM_MAX_DEG - arm_deg
+            else:
+                room = arm_deg - ARM_MIN_DEG
+            if room <= 0:
                 arm_power = 0.0
-        elif ARM_USE_LIMITS and arm_state["homed"] and arm_power > 0:
-            remaining = ARM_MAX_DEG - arm_motor.position(DEGREES)
-            if remaining <= 0:
-                arm_power = 0.0
-                arm_at_top = True
-            elif remaining < ARM_SLOW_ZONE_DEG:
-                arm_power = min(arm_power, max(8.0, 100.0 * ARM_SPEED * remaining / ARM_SLOW_ZONE_DEG))
+                arm_hold = True
+            elif room < ARM_SLOW_ZONE_DEG:
+                cap = max(8.0, 100.0 * ARM_SPEED * room / ARM_SLOW_ZONE_DEG)
+                arm_power = max(-cap, min(cap, arm_power))
+
+        # Stall: pushing but not moving. Let go until the stick is centred.
+        now = brain.timer.time(MSEC)
+        if arm_raw == 0:
+            stalled = False
+        if abs(arm_power) > ARM_STALL_POWER and abs(arm_motor.velocity(DPS)) < ARM_STALL_DPS:
+            if stall_since is None:
+                stall_since = now
+            elif now - stall_since >= ARM_STALL_MS and not stalled:
+                stalled = True
+                arm_note = "STALL"
+                controller.rumble("-")
+        else:
+            stall_since = None
+        if stalled:
+            arm_power = 0.0
+            arm_hold = True
+
+        # Slip: a steady lift whose load suddenly lets go. Warn only; X re-zeros.
+        amps = arm_motor.current()
+        steady = abs(arm_power - last_arm_power) < SLIP_STEADY_PCT
+        if SLIP_DETECT and arm_power > SLIP_MIN_POWER and steady:
+            if avg_amps > SLIP_MIN_AMPS and amps < avg_amps * SLIP_AMP_DROP:
+                arm_state["slips"] = arm_state["slips"] + 1
+                arm_note = "SLIP?"
+                controller.rumble("..")
+                avg_amps = amps    # re-baseline so one slip counts once
+            avg_amps = avg_amps + (amps - avg_amps) * SLIP_AVG_WEIGHT
+        else:
+            avg_amps = amps
+        last_arm_power = arm_power
 
         claw_power = claw_raw * CLAW_SPEED
 
-        if arm_at_top:
+        if arm_hold:
             arm_motor.stop()    # HOLD brakes; spin at 0 would coast
         else:
             arm_motor.spin(FORWARD, arm_power, PERCENT)
         claw_motor.spin(FORWARD, claw_power, PERCENT)
 
-        if CLAW_DIAGNOSTIC:
+        if MOTOR_DIAGNOSTIC:
             diag_tick = diag_tick + 1
             if diag_tick >= 10:          # ~5 Hz, slow enough to read
                 diag_tick = 0
-                show_claw_diagnostic(claw_raw, claw_power)
+                show_motor_diagnostic(arm_note)
+                if not stalled:
+                    arm_note = ""
 
         wait(LOOP_MS, MSEC)

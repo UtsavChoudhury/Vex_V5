@@ -2,6 +2,7 @@
 
 from vex import *
 from config import *
+from vision import approach_tag
 
 
 # --- Movement ---
@@ -167,7 +168,7 @@ def run_path(path):
 
 def bumper_status(text):
     """Bumper state on brain row 1 and the controller, so a dead switch is obvious."""
-    line = "%s  B %s  E %s" % (text, bumper_b.pressing(), bumper_e.pressing())
+    line = "%s  C %s  E %s" % (text, bumper_left.pressing(), bumper_right.pressing())
     brain.screen.clear_line(1)
     brain.screen.set_cursor(1, 1)
     brain.screen.print(line)
@@ -183,7 +184,7 @@ def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
     left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
-    while not (bumper_b.pressing() and bumper_e.pressing()):
+    while not (bumper_left.pressing() and bumper_right.pressing()):
         if brain.timer.time(MSEC) - start > max_ms:
             left_motor.stop()
             right_motor.stop()
@@ -233,8 +234,25 @@ def set_auto_side(side):
     global AUTO_SIDE
     AUTO_SIDE = side
 
+def to_goal(fallback_mm):
+    """Steer to our goal's AprilTag; if the camera can't, finish the distance blind."""
+    tag_id = TAG_FOR_SIDE.get(AUTO_SIDE, 2)
+    bumper_status("tag %d" % tag_id)
+    reached, driven_deg = approach_tag(tag_id)
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
+    if reached:
+        bumper_status("tag %d locked" % tag_id)
+        drive(TAG_FINAL_MM, AUTO_GOAL_SPEED)
+        return True
+    bumper_status("no tag, blind")
+    remaining = fallback_mm - driven_deg / wheel_degrees_for_distance(1.0)
+    if remaining > 0:
+        drive(remaining, AUTO_GOAL_SPEED)
+    return False
+
 def autonomous():
-    """Override: mid-wall start, out a tile, turn to the alliance goal, place the preload."""
+    """Override: mid-wall start, out a tile, turn, steer to the alliance goal's tag, place the preload."""
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
@@ -246,7 +264,7 @@ def autonomous():
     settle()
     turn(90 * AUTO_SIDE)
     settle()
-    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
+    to_goal(AUTO_LEG2_MM)
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
     open_claw()

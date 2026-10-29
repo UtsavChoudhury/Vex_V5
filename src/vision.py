@@ -55,6 +55,91 @@ def find_color_pair():
     bottom = max(yellow.centerY + yellow.height // 2, blue.centerY + blue.height // 2)
     return ConeBox(left, top, right, bottom)
 
+# --- Goal AprilTags ---
+
+def find_tag(tag_id):
+    """Largest AprilTag with this id in view, or None."""
+    best = None
+    for obj in ai_vision.take_snapshot(AiVision.ALL_TAGS, VISION_MAX_OBJECTS):
+        if obj.id == tag_id and (best is None or obj.width > best.width):
+            best = obj
+    return best
+
+def set_drive(forward, turn):
+    """Percent power; positive turn = right."""
+    left_motor.spin(FORWARD, forward + turn, PERCENT)
+    right_motor.spin(FORWARD, forward - turn, PERCENT)
+
+def drive_position():
+    return (left_motor.position(DEGREES) + right_motor.position(DEGREES)) / 2.0
+
+def approach_tag(tag_id):
+    """Steer onto the tag and close in until it is TAG_STOP_WIDTH wide.
+    Returns (reached, motor degrees driven) so a fallback can finish the distance."""
+    start = brain.timer.time(MSEC)
+    start_pos = drive_position()
+    seen = False
+    misses = 0
+    centred = 0
+    while brain.timer.time(MSEC) - start < TAG_MAX_MS:
+        tag = find_tag(tag_id)
+        if tag is None:
+            misses = misses + 1
+            set_drive(0, 0)
+            if (not seen and brain.timer.time(MSEC) - start > TAG_FIND_MS) or (seen and misses >= TAG_LOST_FRAMES):
+                break
+        else:
+            seen = True
+            misses = 0
+            error = tag.centerX - TAG_CENTER_X
+            turn = max(-TAG_MAX_TURN, min(TAG_MAX_TURN, TAG_STEER_KP * error))
+            to_close = TAG_STOP_WIDTH - tag.width
+            if to_close <= 0:
+                set_drive(0, turn if abs(error) > TAG_TOLERANCE_PX else 0)
+                centred = centred + 1 if abs(error) <= TAG_TOLERANCE_PX else 0
+                if centred >= 3:
+                    set_drive(0, 0)
+                    return (True, drive_position() - start_pos)
+            else:
+                centred = 0
+                forward = max(TAG_MIN_SPEED, min(TAG_MAX_SPEED, TAG_SPEED_KP * to_close))
+                set_drive(forward, turn)
+        wait(VISION_LOOP_MS, MSEC)
+    set_drive(0, 0)
+    return (False, drive_position() - start_pos)
+
+def tag_report():
+    """What the camera sees: AprilTags (for calibrating TAG_*) and any AI model objects."""
+    try:
+        ai_vision.model_detection(True)
+    except:
+        pass
+    while True:
+        tags = ai_vision.take_snapshot(AiVision.ALL_TAGS, VISION_MAX_OBJECTS)
+        try:
+            models = ai_vision.take_snapshot(AiVision.ALL_AIOBJS, VISION_MAX_OBJECTS)
+        except:
+            models = ()
+        brain.screen.clear_screen()
+        brain.screen.set_cursor(1, 1)
+        brain.screen.print("TAGS %d  AI %d  installed %s" % (len(tags), len(models), ai_vision.installed()))
+        row = 2
+        for obj in tags:
+            if row > 7:
+                break
+            brain.screen.set_cursor(row, 1)
+            brain.screen.print("TAG %d  x %d y %d  w %d h %d  ang %d" % (
+                obj.id, obj.centerX, obj.centerY, obj.width, obj.height, obj.angle))
+            row = row + 1
+        for obj in models:
+            if row > 11:
+                break
+            brain.screen.set_cursor(row, 1)
+            brain.screen.print("AI %s  x %d  w %d  score %d" % (obj.classname, obj.centerX, obj.width, obj.score))
+            row = row + 1
+        brain.screen.render()
+        wait(200, MSEC)
+
 def cone_detector():
     """Watch continuously and announce the cone each time it comes into view."""
     brain.screen.clear_screen()

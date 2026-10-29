@@ -15,8 +15,9 @@ controller = Controller()
 
 # --- Hardware ---
 
-RIGHT_PORT = Ports.PORT1
-LEFT_PORT = Ports.PORT2
+RIGHT_PORT = Ports.PORT4
+LEFT_PORT = Ports.PORT6
+# Radio is on port 5; VEXos manages it, never declare it.
 
 # Flip if the robot drives backward when you push the stick forward.
 INVERT_DRIVE = False
@@ -50,7 +51,7 @@ WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
-AUTO_ARM_SPEED = 80
+AUTO_ARM_SPEED = 45
 ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ deg
 
 # Override preload autonomous. Arm degrees are absolute from where the arm sits
@@ -75,26 +76,16 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
 
 
-# Back bumper switches, 3-wire ports B and E.
-bumper_b = Bumper(brain.three_wire_port.b)
-bumper_e = Bumper(brain.three_wire_port.e)
-
-# Every 3-wire port, so a new switch can be found by pressing it. See show_claw_diagnostic().
-probe_a = Bumper(brain.three_wire_port.a)
-probe_c = Bumper(brain.three_wire_port.c)
-probe_d = Bumper(brain.three_wire_port.d)
-probe_f = Bumper(brain.three_wire_port.f)
-probe_g = Bumper(brain.three_wire_port.g)
-probe_h = Bumper(brain.three_wire_port.h)
-
-# Pressed when the arm is fully down.
-arm_switch = probe_g
+# Bumper switches: back left C, back right E, left side F.
+bumper_left = Bumper(brain.three_wire_port.c)
+bumper_right = Bumper(brain.three_wire_port.e)
+bumper_side = Bumper(brain.three_wire_port.f)
 
 
 # --- Manipulator hardware ---
 
-ARM_PORT = Ports.PORT10
-CLAW_PORT = Ports.PORT4
+ARM_PORT = Ports.PORT9
+CLAW_PORT = Ports.PORT10
 
 ARM_INVERT = True
 CLAW_INVERT = True
@@ -148,7 +139,7 @@ FORWARD_PRIORITY = 0.8  # 0.0 = old clipping, 1.0 = forward never yields at all
 ARM_DEADBAND = 5
 CLAW_DEADBAND = 5
 
-ARM_SPEED = 0.75        # fraction of full power available to the arm
+ARM_SPEED = 0.45        # fraction of full power available to the arm
 CLAW_SPEED = 0.60       # claws need less; extra power just stalls and heats
 
 ARM_ACCEL_STEP = 6.0    # 0 -> 75% in ~250 ms
@@ -156,23 +147,39 @@ ARM_DECEL_STEP = 15.0
 
 CLAW_TORQUE = 100
 
-# Prints the claw stick and motor load to the brain screen. Turn off for comp.
-CLAW_DIAGNOSTIC = True
+# Motor rotations, arm load and bumpers on the brain screen. Turn off for comp.
+MOTOR_DIAGNOSTIC = True
 
 ARM_USE_LIMITS = True
 ARM_MIN_DEG = 0.0
-ARM_MAX_DEG = 1025.0      # measured top is 1040; keep a margin
+ARM_MAX_DEG = 1025.0      # old robot's top was 1040; re-measure on the new one
 
-ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees of travel
+ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees at either end
 ARM_TORQUE = 50           # percent of max; a stalled arm can't twist a rod this hard
-ARM_HOME_TORQUE = 30
-ARM_HOME_SPEED = 30     # percent, lowering onto the switch
-ARM_HOME_MAX_MS = 10000   # no switch by then = give up
+
+# Zeroing without a switch: confirm by hand, or lower until the motor stalls.
+ARM_ZERO_SPEED = 0.25     # fraction of power for the stick while confirming
+ARM_FIND_SPEED = 15       # percent, lowering to find the bottom
+ARM_FIND_TORQUE = 25      # percent; gravity helps, so little is needed
+ARM_FIND_MAX_MS = 12000
+
+# Stall: commanded but not moving. Cut power instead of fighting the stop.
+ARM_STALL_POWER = 10      # percent; below this the arm isn't really being pushed
+ARM_STALL_DPS = 8         # slower than this counts as not moving
+ARM_STALL_MS = 300
+
+# Track slip while lifting: load (amps) suddenly drops while the stick is steady.
+SLIP_DETECT = True
+SLIP_MIN_POWER = 15       # only judge a steady lift
+SLIP_STEADY_PCT = 3       # stick must have changed less than this since last tick
+SLIP_AMP_DROP = 0.45      # amps fell below this fraction of their recent average
+SLIP_MIN_AMPS = 0.3       # ignore drops from an already-light load
+SLIP_AVG_WEIGHT = 0.1     # weight of each new reading in the running average
 
 
 # --- AI Vision ---
 
-AI_VISION_PORT = Ports.PORT15    # <-- set to the port the sensor is plugged into
+AI_VISION_PORT = Ports.PORT7
 
 BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
 YELLOW_CONE_ID = 2               # colour "yellowcone"
@@ -200,6 +207,29 @@ ai_vision = AiVision(AI_VISION_PORT, BLUE_CONE, YELLOW_CONE, CONE)
 # snapshot comes back empty even though the sensor is streaming.
 ai_vision.color_detection(True)
 
+# Every Override goal carries an AprilTag (manual Appendix A16). Alliance goals
+# are tag 2 (alliance-station side quadrant) and tag 3; neutrals 1 and 4; centre 0.
+TAG_FAMILY = AiVision.TAG_CIRCLE21H7   # notched-square tags on the goals; check with tag_report()
+try:
+    ai_vision.set_tag_family(TAG_FAMILY)
+    ai_vision.tag_detection(True)
+except:
+    pass
+
+TAG_FOR_SIDE = {1: 2, -1: 3}     # arrow pressed -> goal tag; see README.md
+TAG_CENTER_X = 160               # tag centerX when the claw lines up with the goal
+TAG_STOP_WIDTH = 40              # tag width (px) where vision hands over to the final drive
+TAG_FINAL_MM = 80                # drive from there until the claw is over the goal
+TAG_STEER_KP = 0.10              # turn power per pixel
+TAG_MAX_TURN = 12
+TAG_MIN_SPEED = 8                # percent forward while closing in
+TAG_MAX_SPEED = 25
+TAG_SPEED_KP = 0.8               # forward power per pixel of width still to close
+TAG_TOLERANCE_PX = 6
+TAG_FIND_MS = 1200               # never seen by then = fall back to distances
+TAG_LOST_FRAMES = 6              # misses in a row after seeing it = fall back
+TAG_MAX_MS = 5000
+
 VISION_MIN_WIDTH = 6             # a cone across the field is only ~15 px wide
 VISION_MIN_HEIGHT = 6
 
@@ -211,43 +241,79 @@ VISION_MAX_OBJECTS = 8
 
 # --- Shared setup ---
 
-arm_state = {"homed": False}
+arm_state = {"homed": False, "slips": 0}
 
-def say(text):
-    """One line on the brain and the controller."""
+def say(text, second=""):
+    """A line (and optional second line) on the brain and the controller."""
     brain.screen.clear_screen()
     brain.screen.set_cursor(1, 1)
     brain.screen.print(text)
     controller.screen.clear_screen()
     controller.screen.set_cursor(1, 1)
     controller.screen.print(text)
+    if second:
+        brain.screen.set_cursor(2, 1)
+        brain.screen.print(second)
+        controller.screen.set_cursor(2, 1)
+        controller.screen.print(second)
 
-def home_arm():
-    """Wait for A, lower the arm onto the switch and call that 0. False if it never arrives."""
-    say("ARM HOME: clear? A")
-    while not controller.buttonA.pressing():
+def release_buttons():
+    while controller.buttonA.pressing() or controller.buttonB.pressing():
         wait(20, MSEC)
-    while controller.buttonA.pressing():
-        wait(20, MSEC)
-    arm_motor.set_stopping(HOLD)
-    arm_motor.set_max_torque(ARM_HOME_TORQUE, PERCENT)
-    if not arm_switch.pressing():
-        say("arm homing...")
-        arm_motor.spin(REVERSE, ARM_HOME_SPEED, PERCENT)
-        start = brain.timer.time(MSEC)
-        while not arm_switch.pressing():
-            if brain.timer.time(MSEC) - start > ARM_HOME_MAX_MS:
-                arm_motor.stop()
-                arm_state["homed"] = False
-                say("ARM HOME FAILED")
-                return False
-            wait(10, MSEC)
+
+def zero_arm_here():
     arm_motor.stop()
     wait(100, MSEC)
     arm_motor.reset_position()
     arm_state["homed"] = True
-    say("arm homed")
-    return True
+
+def find_arm_bottom():
+    """Lower slowly at low torque until the motor stalls on the bottom stop, then call it 0."""
+    say("finding arm bottom")
+    arm_motor.set_stopping(HOLD)
+    arm_motor.set_max_torque(ARM_FIND_TORQUE, PERCENT)
+    arm_motor.spin(REVERSE, ARM_FIND_SPEED, PERCENT)
+    start = brain.timer.time(MSEC)
+    still_since = None
+    while brain.timer.time(MSEC) - start < ARM_FIND_MAX_MS:
+        now = brain.timer.time(MSEC)
+        if now - start > 400 and abs(arm_motor.velocity(DPS)) < ARM_STALL_DPS:
+            if still_since is None:
+                still_since = now
+            elif now - still_since >= ARM_STALL_MS:
+                zero_arm_here()
+                arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
+                say("arm zeroed")
+                return True
+        else:
+            still_since = None
+        wait(10, MSEC)
+    arm_motor.stop()
+    arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
+    arm_state["homed"] = False
+    say("ARM BOTTOM NOT FOUND")
+    return False
+
+def confirm_arm_zero():
+    """Ask whether the arm is at the bottom. A = yes, B = find it; right stick moves it meanwhile."""
+    say("Arm at bottom? A=yes", "B=find  Rstick=move")
+    arm_motor.set_stopping(HOLD)
+    arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
+    while True:
+        if controller.buttonA.pressing():
+            release_buttons()
+            zero_arm_here()
+            say("arm zeroed")
+            return True
+        if controller.buttonB.pressing():
+            release_buttons()
+            return find_arm_bottom()
+        stick = controller.axis2.position()
+        if abs(stick) < ARM_DEADBAND:
+            arm_motor.stop()
+        else:
+            arm_motor.spin(FORWARD, stick * ARM_ZERO_SPEED, PERCENT)
+        wait(20, MSEC)
 
 def manipulator_init():
     """Put the arm and claw in their start-of-match state. HOLD stops them creeping."""
@@ -313,6 +379,91 @@ def find_color_pair():
     top = min(yellow.centerY - yellow.height // 2, blue.centerY - blue.height // 2)
     bottom = max(yellow.centerY + yellow.height // 2, blue.centerY + blue.height // 2)
     return ConeBox(left, top, right, bottom)
+
+# --- Goal AprilTags ---
+
+def find_tag(tag_id):
+    """Largest AprilTag with this id in view, or None."""
+    best = None
+    for obj in ai_vision.take_snapshot(AiVision.ALL_TAGS, VISION_MAX_OBJECTS):
+        if obj.id == tag_id and (best is None or obj.width > best.width):
+            best = obj
+    return best
+
+def set_drive(forward, turn):
+    """Percent power; positive turn = right."""
+    left_motor.spin(FORWARD, forward + turn, PERCENT)
+    right_motor.spin(FORWARD, forward - turn, PERCENT)
+
+def drive_position():
+    return (left_motor.position(DEGREES) + right_motor.position(DEGREES)) / 2.0
+
+def approach_tag(tag_id):
+    """Steer onto the tag and close in until it is TAG_STOP_WIDTH wide.
+    Returns (reached, motor degrees driven) so a fallback can finish the distance."""
+    start = brain.timer.time(MSEC)
+    start_pos = drive_position()
+    seen = False
+    misses = 0
+    centred = 0
+    while brain.timer.time(MSEC) - start < TAG_MAX_MS:
+        tag = find_tag(tag_id)
+        if tag is None:
+            misses = misses + 1
+            set_drive(0, 0)
+            if (not seen and brain.timer.time(MSEC) - start > TAG_FIND_MS) or (seen and misses >= TAG_LOST_FRAMES):
+                break
+        else:
+            seen = True
+            misses = 0
+            error = tag.centerX - TAG_CENTER_X
+            turn = max(-TAG_MAX_TURN, min(TAG_MAX_TURN, TAG_STEER_KP * error))
+            to_close = TAG_STOP_WIDTH - tag.width
+            if to_close <= 0:
+                set_drive(0, turn if abs(error) > TAG_TOLERANCE_PX else 0)
+                centred = centred + 1 if abs(error) <= TAG_TOLERANCE_PX else 0
+                if centred >= 3:
+                    set_drive(0, 0)
+                    return (True, drive_position() - start_pos)
+            else:
+                centred = 0
+                forward = max(TAG_MIN_SPEED, min(TAG_MAX_SPEED, TAG_SPEED_KP * to_close))
+                set_drive(forward, turn)
+        wait(VISION_LOOP_MS, MSEC)
+    set_drive(0, 0)
+    return (False, drive_position() - start_pos)
+
+def tag_report():
+    """What the camera sees: AprilTags (for calibrating TAG_*) and any AI model objects."""
+    try:
+        ai_vision.model_detection(True)
+    except:
+        pass
+    while True:
+        tags = ai_vision.take_snapshot(AiVision.ALL_TAGS, VISION_MAX_OBJECTS)
+        try:
+            models = ai_vision.take_snapshot(AiVision.ALL_AIOBJS, VISION_MAX_OBJECTS)
+        except:
+            models = ()
+        brain.screen.clear_screen()
+        brain.screen.set_cursor(1, 1)
+        brain.screen.print("TAGS %d  AI %d  installed %s" % (len(tags), len(models), ai_vision.installed()))
+        row = 2
+        for obj in tags:
+            if row > 7:
+                break
+            brain.screen.set_cursor(row, 1)
+            brain.screen.print("TAG %d  x %d y %d  w %d h %d  ang %d" % (
+                obj.id, obj.centerX, obj.centerY, obj.width, obj.height, obj.angle))
+            row = row + 1
+        for obj in models:
+            if row > 11:
+                break
+            brain.screen.set_cursor(row, 1)
+            brain.screen.print("AI %s  x %d  w %d  score %d" % (obj.classname, obj.centerX, obj.width, obj.score))
+            row = row + 1
+        brain.screen.render()
+        wait(200, MSEC)
 
 def cone_detector():
     """Watch continuously and announce the cone each time it comes into view."""
@@ -599,7 +750,7 @@ def run_path(path):
 
 def bumper_status(text):
     """Bumper state on brain row 1 and the controller, so a dead switch is obvious."""
-    line = "%s  B %s  E %s" % (text, bumper_b.pressing(), bumper_e.pressing())
+    line = "%s  C %s  E %s" % (text, bumper_left.pressing(), bumper_right.pressing())
     brain.screen.clear_line(1)
     brain.screen.set_cursor(1, 1)
     brain.screen.print(line)
@@ -615,7 +766,7 @@ def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
     left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
-    while not (bumper_b.pressing() and bumper_e.pressing()):
+    while not (bumper_left.pressing() and bumper_right.pressing()):
         if brain.timer.time(MSEC) - start > max_ms:
             left_motor.stop()
             right_motor.stop()
@@ -665,8 +816,25 @@ def set_auto_side(side):
     global AUTO_SIDE
     AUTO_SIDE = side
 
+def to_goal(fallback_mm):
+    """Steer to our goal's AprilTag; if the camera can't, finish the distance blind."""
+    tag_id = TAG_FOR_SIDE.get(AUTO_SIDE, 2)
+    bumper_status("tag %d" % tag_id)
+    reached, driven_deg = approach_tag(tag_id)
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
+    if reached:
+        bumper_status("tag %d locked" % tag_id)
+        drive(TAG_FINAL_MM, AUTO_GOAL_SPEED)
+        return True
+    bumper_status("no tag, blind")
+    remaining = fallback_mm - driven_deg / wheel_degrees_for_distance(1.0)
+    if remaining > 0:
+        drive(remaining, AUTO_GOAL_SPEED)
+    return False
+
 def autonomous():
-    """Override: mid-wall start, out a tile, turn to the alliance goal, place the preload."""
+    """Override: mid-wall start, out a tile, turn, steer to the alliance goal's tag, place the preload."""
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
@@ -678,7 +846,7 @@ def autonomous():
     settle()
     turn(90 * AUTO_SIDE)
     settle()
-    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
+    to_goal(AUTO_LEG2_MM)
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
     open_claw()
@@ -745,26 +913,27 @@ def fit_turn(forward, turn, priority):
     allowed = wanted + (room - wanted) * priority
     return allowed if turn >= 0 else -allowed
 
-def show_claw_diagnostic(stick, power):
-    """Print claw stick position and motor load to the brain screen."""
-    brain.screen.set_cursor(4, 1)
-    brain.screen.clear_line(4)
-    brain.screen.print("claw stick %d  pwr %d  arm %d" % (int(stick), int(power),
-                                                         int(arm_motor.position(DEGREES))))
-    brain.screen.set_cursor(7, 1)
-    brain.screen.clear_line(7)
-    brain.screen.print("A%d B%d C%d D%d E%d F%d G%d H%d" % (
-        probe_a.pressing(), bumper_b.pressing(), probe_c.pressing(),
-        probe_d.pressing(), bumper_e.pressing(), probe_f.pressing(),
-        probe_g.pressing(), probe_h.pressing()))
-    brain.screen.set_cursor(5, 1)
-    brain.screen.clear_line(5)
+def screen_line(row, text):
+    brain.screen.clear_line(row)
+    brain.screen.set_cursor(row, 1)
+    brain.screen.print(text)
+
+def show_motor_diagnostic(arm_note):
+    """Every motor's rotation, the arm's load and the bumpers, on the brain screen."""
     try:
-        brain.screen.print("amps %.2f  temp %d%%" % (claw_motor.current(),
-                                                     claw_motor.temperature()))
+        arm_deg = arm_motor.position(DEGREES)
+        screen_line(3, "L drive %6d deg   R drive %6d deg" % (
+            left_motor.position(DEGREES), right_motor.position(DEGREES)))
+        screen_line(4, "ARM %5d deg  %.2f rev  %4d dps" % (
+            arm_deg, arm_deg / 360.0, arm_motor.velocity(DPS)))
+        screen_line(5, "arm %.2f A  %s%s" % (
+            arm_motor.current(), arm_note, "" if arm_state["homed"] else "  NOT ZEROED"))
+        screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
+        screen_line(7, "bump C%d E%d F%d   slips %d  (X = re-zero arm)" % (
+            bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing(), arm_state["slips"]))
     except:
         # Never let a diagnostic take the drive down mid-match.
-        brain.screen.print("amps n/a on this SDK")
+        screen_line(5, "diagnostic error")
 
 
 # --- Cone assist ---
@@ -864,7 +1033,7 @@ def user_control():
     brain.screen.clear_screen()
     brain.screen.print("Slow Drive / Fast Turn")
     brain.screen.next_row()
-    brain.screen.print("L=port2  R=port1  invert=" + str(INVERT_DRIVE))
+    brain.screen.print("L=port6  R=port4  invert=" + str(INVERT_DRIVE))
 
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
@@ -878,8 +1047,21 @@ def user_control():
     diag_tick = 0
     was_left = False
     was_right = False
+    stall_since = None
+    stalled = False
+    last_arm_power = 0.0
+    avg_amps = 0.0
+    arm_note = ""
 
     while True:
+        if controller.buttonX.pressing():
+            while controller.buttonX.pressing():
+                wait(20, MSEC)
+            find_arm_bottom()
+            brain.screen.clear_screen()
+            arm_power = 0.0
+            stalled = False
+
         # Edge-triggered so a button held through cancelling doesn't restart it.
         left_now = controller.buttonLeft.pressing()
         right_now = controller.buttonRight.pressing()
@@ -964,34 +1146,67 @@ def user_control():
         arm_target = ((arm_raw * abs(arm_raw)) / 100.0) * ARM_SPEED
         arm_power = slew(arm_power, arm_target, ARM_ACCEL_STEP, ARM_DECEL_STEP)
 
-        # Refuse to drive further into a limit, but always allow coming back.
-        # The switch is the real bottom; it re-zeros every time it is touched.
-        arm_at_top = False
-        if arm_switch.pressing():
-            arm_motor.reset_position()
-            if arm_power < 0:
+        # Refuse to drive further into either end, taper near them, always allow coming back.
+        arm_hold = False
+        arm_deg = arm_motor.position(DEGREES)
+        if ARM_USE_LIMITS and arm_state["homed"] and arm_power != 0:
+            if arm_power > 0:
+                room = ARM_MAX_DEG - arm_deg
+            else:
+                room = arm_deg - ARM_MIN_DEG
+            if room <= 0:
                 arm_power = 0.0
-        elif ARM_USE_LIMITS and arm_state["homed"] and arm_power > 0:
-            remaining = ARM_MAX_DEG - arm_motor.position(DEGREES)
-            if remaining <= 0:
-                arm_power = 0.0
-                arm_at_top = True
-            elif remaining < ARM_SLOW_ZONE_DEG:
-                arm_power = min(arm_power, max(8.0, 100.0 * ARM_SPEED * remaining / ARM_SLOW_ZONE_DEG))
+                arm_hold = True
+            elif room < ARM_SLOW_ZONE_DEG:
+                cap = max(8.0, 100.0 * ARM_SPEED * room / ARM_SLOW_ZONE_DEG)
+                arm_power = max(-cap, min(cap, arm_power))
+
+        # Stall: pushing but not moving. Let go until the stick is centred.
+        now = brain.timer.time(MSEC)
+        if arm_raw == 0:
+            stalled = False
+        if abs(arm_power) > ARM_STALL_POWER and abs(arm_motor.velocity(DPS)) < ARM_STALL_DPS:
+            if stall_since is None:
+                stall_since = now
+            elif now - stall_since >= ARM_STALL_MS and not stalled:
+                stalled = True
+                arm_note = "STALL"
+                controller.rumble("-")
+        else:
+            stall_since = None
+        if stalled:
+            arm_power = 0.0
+            arm_hold = True
+
+        # Slip: a steady lift whose load suddenly lets go. Warn only; X re-zeros.
+        amps = arm_motor.current()
+        steady = abs(arm_power - last_arm_power) < SLIP_STEADY_PCT
+        if SLIP_DETECT and arm_power > SLIP_MIN_POWER and steady:
+            if avg_amps > SLIP_MIN_AMPS and amps < avg_amps * SLIP_AMP_DROP:
+                arm_state["slips"] = arm_state["slips"] + 1
+                arm_note = "SLIP?"
+                controller.rumble("..")
+                avg_amps = amps    # re-baseline so one slip counts once
+            avg_amps = avg_amps + (amps - avg_amps) * SLIP_AVG_WEIGHT
+        else:
+            avg_amps = amps
+        last_arm_power = arm_power
 
         claw_power = claw_raw * CLAW_SPEED
 
-        if arm_at_top:
+        if arm_hold:
             arm_motor.stop()    # HOLD brakes; spin at 0 would coast
         else:
             arm_motor.spin(FORWARD, arm_power, PERCENT)
         claw_motor.spin(FORWARD, claw_power, PERCENT)
 
-        if CLAW_DIAGNOSTIC:
+        if MOTOR_DIAGNOSTIC:
             diag_tick = diag_tick + 1
             if diag_tick >= 10:          # ~5 Hz, slow enough to read
                 diag_tick = 0
-                show_claw_diagnostic(claw_raw, claw_power)
+                show_motor_diagnostic(arm_note)
+                if not stalled:
+                    arm_note = ""
 
         wait(LOOP_MS, MSEC)
 
@@ -1004,11 +1219,11 @@ def user_control():
 
 
 # --- Programs ---
-# Arm degrees count from program start, so always start with the arm resting down.
+# Arm degrees count from where confirm_arm_zero() is answered.
 
 def driver():
     """Slot 1: manual control only."""
-    home_arm()
+    confirm_arm_zero()
     user_control()
 
 def show_both(row, text):
@@ -1030,7 +1245,7 @@ def read_side():
 
 def auto_on_button():
     """Slot 2: arrow towards the goal starts autonomous, then the driver takes over."""
-    home_arm()
+    confirm_arm_zero()
     brain.screen.clear_screen()
     controller.screen.clear_screen()
     show_both(1, "AUTO: < or > goal")
@@ -1049,7 +1264,7 @@ def auto_on_button():
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
     global competition
-    home_arm()
+    confirm_arm_zero()
     competition = Competition(user_control, autonomous)
     brain.screen.clear_screen()
     controller.screen.clear_screen()
@@ -1066,6 +1281,7 @@ def match():
 
 def main():
     # scan_ports()
+    # tag_report()
     # vision_report()
     # cone_detector()
     # turn_tuner()

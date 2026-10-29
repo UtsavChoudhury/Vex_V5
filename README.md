@@ -22,13 +22,14 @@ every change.
 
 | Port | Device |
 |------|--------|
-| 1 | right drive motor (green 18:1) |
-| 2 | left drive motor (green 18:1) |
-| 4 | claw motor (red 36:1) |
-| 10 | arm motor (red 36:1) |
-| 15 | AI Vision sensor |
-| 3-wire B, E | back bumper switches |
-| 9 | VEXnet radio — managed by brain firmware, never declared in code |
+| 4 | right drive motor (green 18:1) |
+| 6 | left drive motor (green 18:1) |
+| 7 | AI Vision sensor |
+| 9 | arm motor (red 36:1), lifts the arm by tracks |
+| 10 | claw motor (red 36:1) |
+| 3-wire C, E | back bumper switches, left and right |
+| 3-wire F | left side bumper switch |
+| 5 | VEXnet radio — managed by brain firmware, never declared in code |
 
 Set `INVERT_DRIVE` in `src/config.py` if the robot drives backward when you push
 the stick forward.
@@ -44,6 +45,28 @@ the stick forward.
 | nothing held | 50% power |
 | Left arrow | cone assist: spin left until the cone is seen, then centre on it |
 | Right arrow | cone assist: spin right until the cone is seen, then centre on it |
+| X | re-zero the arm: lowers slowly until it stalls on the bottom, calls that 0 |
+
+### Arm zero, limits, stall and slip
+
+There is no arm switch. Every program starts with `Arm at bottom? A=yes`: move
+the arm with the right stick if needed, then **A** sets 0 there, or **B** lowers it
+slowly at low torque until the motor stalls on the bottom stop (`find_arm_bottom()`).
+
+Once zeroed, the arm stops at `ARM_MIN_DEG` and `ARM_MAX_DEG` and slows over the
+last `ARM_SLOW_ZONE_DEG` at each end. Re-measure `ARM_MAX_DEG` on each new arm.
+
+- **Stall**: pushing (over `ARM_STALL_POWER`) but slower than `ARM_STALL_DPS` for
+  `ARM_STALL_MS` cuts arm power, one long rumble, `STALL` on screen, until the
+  stick is centred. This is what protects shafts from being wound against a stop.
+- **Slip**: the tracks can skip. A skip during a steady lift shows as the arm's
+  current suddenly dropping below `SLIP_AMP_DROP` of its recent average. That
+  counts a slip, two short rumbles, `SLIP?` on screen. It only warns; press **X**
+  to re-zero. The thresholds are first guesses, so tune them against real skips
+  using the amps shown on screen.
+
+The brain screen shows every motor's rotation, the arm's speed and current, the
+bumpers and the slip count (`MOTOR_DIAGNOSTIC`).
 
 While cone assist runs, **any** button or a stick pushed past
 `ASSIST_STICK_CANCEL` stops it and hands control straight back. The controller
@@ -61,13 +84,13 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 | `cone_detector()` | watch through the AI Vision sensor, announce the cone |
 | `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
 | `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
+| `tag_report()` | diagnostic — AprilTags (id, x, width) and AI model objects the camera sees |
 | `user_control()` | normal driving |
 | `test_autonomous()` | runs `autonomous()` immediately on Run, then driver control |
 | `match()` | **competitions** — field control picks `autonomous()` or `user_control()` |
 | `turn_tuner()` | on-robot turn calibration |
 
-`main()` zeroes the arm encoder, so always start a program with the arm resting
-down.
+Every mode starts with the arm-zero question; see above.
 
 ## Autonomous (Override)
 
@@ -83,13 +106,31 @@ start is the **middle of a side wall**, under the Toggle. From there the goal is
 about one tile out and one tile along. See `start_positions.png`.
 
 Setup: back bumpers on the wall, centred on the wall, preload Pin gripped upright
-in the claw, arm resting down.
+in the claw, arm zeroed.
 
 1. Seats both bumpers on the wall (`AUTO_SEAT_MS`; carries on either way).
 2. Arm to `AUTO_ARM_CARRY_DEG`, drives `AUTO_LEG1_MM` out from the wall.
 3. Turns 90° towards the goal (`AUTO_SIDE`, chosen with the arrow buttons).
-4. Drives `AUTO_LEG2_MM`, arm down to `AUTO_ARM_PLACE_DEG`, opens the claw, arm
-   back up, backs off.
+4. Steers to the goal by its AprilTag (`to_goal()`), then arm down to
+   `AUTO_ARM_PLACE_DEG`, opens the claw, arm back up, backs off.
+
+### Goal AprilTags
+
+Every Override goal carries a circle21h7 AprilTag (manual Appendix A16, A7):
+alliance goals are tag **2** (the quadrant on the alliance-station side) and tag
+**3**, neutrals 1 and 4, centre 0. Red and blue use the same numbers, mirrored, so
+the arrow pressed picks the tag (`TAG_FOR_SIDE`): Right = 2, Left = 3.
+
+`approach_tag()` steers so the tag sits at `TAG_CENTER_X` and drives until it is
+`TAG_STOP_WIDTH` px wide, then `TAG_FINAL_MM` blind puts the claw over the goal.
+This absorbs turn and distance error. If the tag is never seen within
+`TAG_FIND_MS`, or is lost, it finishes the remaining `AUTO_LEG2_MM` by distance.
+
+Calibrate with `tag_report()`: put the claw over the goal by hand, back off until
+the tag is fully in view, read `x` into `TAG_CENTER_X` and `w` into
+`TAG_STOP_WIDTH`, and measure the back-off into `TAG_FINAL_MM`. If no `TAG` lines
+appear at all, the tag family is wrong: try the other `AiVision.TAG_*` values in
+`TAG_FAMILY`.
 
 | Start | Goal is | Press |
 |---|---|---|
@@ -133,7 +174,7 @@ S
 Start at S with the back bumper towards the wall and the nose pointing at A.
 
 1. `square_to_wall()` backs into the wall at `WALL_SQUARE_SPEED` until **both**
-   back bumper switches (3-wire ports B and E) are pressed, pushes
+   back bumper switches (3-wire ports C and E) are pressed, pushes
    `WALL_SQUARE_PUSH_MS` longer, then stops. Both sides keep driving while only
    one bumper is in, so the robot swings flat against the wall. Nothing else
    runs until both are pressed; if that hasn't happened within
