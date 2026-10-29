@@ -931,9 +931,35 @@ def show_motor_diagnostic(arm_note):
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
         screen_line(7, "bump C%d E%d F%d   slips %d  (X = re-zero arm)" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing(), arm_state["slips"]))
+        screen_line(8, "camera: " + tags_text())
     except:
         # Never let a diagnostic take the drive down mid-match.
         screen_line(5, "diagnostic error")
+
+def tags_text():
+    """AprilTags in view, nearest first: 'T2 x162 w38'."""
+    tags = sorted(ai_vision.take_snapshot(AiVision.ALL_TAGS, VISION_MAX_OBJECTS),
+                  key=lambda t: -t.width)
+    if len(tags) == 0:
+        return "no tags"
+    return "  ".join("T%d x%d w%d" % (t.id, t.centerX, t.width) for t in tags[:3])
+
+def show_controller_line(row, arm_note):
+    """One of three short lines on the controller; one per call, as its screen is slow."""
+    try:
+        if row == 1:
+            text = "ARM %d %.1fr %s" % (arm_motor.position(DEGREES), arm_motor.position(DEGREES) / 360.0,
+                                       arm_note if arm_state["homed"] else "NO ZERO")
+        elif row == 2:
+            text = "L%d R%d" % (left_motor.position(DEGREES), right_motor.position(DEGREES))
+        else:
+            tags = tags_text()
+            text = tags if tags != "no tags" else "CLAW %d slip %d" % (claw_motor.position(DEGREES), arm_state["slips"])
+        controller.screen.clear_line(row)
+        controller.screen.set_cursor(row, 1)
+        controller.screen.print(text[:19])
+    except:
+        pass
 
 
 # --- Cone assist ---
@@ -1052,6 +1078,8 @@ def user_control():
     last_arm_power = 0.0
     avg_amps = 0.0
     arm_note = ""
+    ctrl_row = 0
+    controller.screen.clear_screen()
 
     while True:
         if controller.buttonX.pressing():
@@ -1205,6 +1233,8 @@ def user_control():
             if diag_tick >= 10:          # ~5 Hz, slow enough to read
                 diag_tick = 0
                 show_motor_diagnostic(arm_note)
+                ctrl_row = ctrl_row % 3 + 1
+                show_controller_line(ctrl_row, arm_note)
                 if not stalled:
                     arm_note = ""
 
