@@ -31,7 +31,7 @@ EXTERNAL_GEAR_RATIO = 1.0     # motor revolutions per wheel revolution
 WHEEL_TRAVEL_MM = PI * WHEEL_DIAMETER_MM
 
 DRIVE_SCALE = 1.00
-TURN_SCALE = 1.05        # field test: 90 was turning a little short
+TURN_SCALE = 1.10        # field test: 90 still turning a little short
 
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
@@ -52,7 +52,7 @@ ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ de
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
 # Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
 AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
-AUTO_LEG2_MM = 250        # goal-along distance minus turning centre -> claw centre
+AUTO_LEG2_MM = 320        # after the turn; field test: was stopping short
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
 AUTO_ARM_PLACE_DEG = 600  # pin bottom inside the goal
