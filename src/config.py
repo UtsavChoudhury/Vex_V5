@@ -80,7 +80,7 @@ bumper_side = Bumper(brain.three_wire_port.f)
 ARM_PORT = Ports.PORT9
 CLAW_PORT = Ports.PORT10
 
-ARM_INVERT = True
+ARM_INVERT = False
 CLAW_INVERT = True
 
 arm_motor = Motor(ARM_PORT, GearSetting.RATIO_36_1, ARM_INVERT)
