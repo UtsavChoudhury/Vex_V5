@@ -148,7 +148,7 @@ ARM_DECEL_STEP = 15.0
 CLAW_TORQUE = 100
 
 # Claw range: 0 = fully open (set at start), CLAW_MAX_DEG = fully closed.
-CLAW_USE_LIMITS = True
+CLAW_USE_LIMITS = False   # off: the claw must open wider than the start zero for a cup
 CLAW_MAX_DEG = 120.0
 CLAW_CLOSE_SIGN = -1      # closing takes the claw position negative (0 open, -100 closed)
 CLAW_ZERO_SPEED = 0.30    # fraction of power for the stick while confirming
@@ -931,7 +931,7 @@ def show_motor_diagnostic():
         screen_line(5, "arm %.2f A%s" % (
             arm_motor.current(), "" if arm_state["homed"] else "  NOT ZEROED"))
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
-        screen_line(7, "bump C%d E%d F%d   (X = re-zero  L1 = no limits)" % (
+        screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
         screen_line(8, "camera: " + tags_text())
     except:
@@ -1173,8 +1173,7 @@ def user_control():
         # Refuse to drive further into either end, taper near them, always allow coming back.
         arm_hold = False
         arm_deg = arm_motor.position(DEGREES)
-        limits_on = not controller.buttonL1.pressing()    # hold L1 to go past the limits
-        if ARM_USE_LIMITS and limits_on and arm_state["homed"] and arm_power != 0:
+        if ARM_USE_LIMITS and arm_state["homed"] and arm_power != 0:
             if arm_power > 0:
                 room = ARM_MAX_DEG - arm_deg
             else:
@@ -1188,7 +1187,7 @@ def user_control():
 
         claw_power = claw_raw * CLAW_SPEED
         claw_hold = False
-        if CLAW_USE_LIMITS and limits_on and claw_state["zeroed"] and claw_power != 0:
+        if CLAW_USE_LIMITS and claw_state["zeroed"] and claw_power != 0:
             closed = claw_motor.position(DEGREES) * CLAW_CLOSE_SIGN
             closing = claw_power * CLAW_CLOSE_SIGN > 0
             if (closing and closed >= CLAW_MAX_DEG) or (not closing and closed <= 0):
