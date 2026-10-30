@@ -51,7 +51,7 @@ WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
-AUTO_ARM_SPEED = 60
+AUTO_ARM_SPEED = 100
 ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ deg
 
 # Override preload autonomous. Arm degrees are absolute from where the arm sits
@@ -139,7 +139,7 @@ FORWARD_PRIORITY = 0.8  # 0.0 = old clipping, 1.0 = forward never yields at all
 ARM_DEADBAND = 5
 CLAW_DEADBAND = 5
 
-ARM_SPEED = 0.60        # fraction of full power available to the arm
+ARM_SPEED = 1.00        # fraction of full power available to the arm
 CLAW_SPEED = 0.60       # claws need less; extra power just stalls and heats
 
 ARM_ACCEL_STEP = 6.0    # 0 -> 75% in ~250 ms
