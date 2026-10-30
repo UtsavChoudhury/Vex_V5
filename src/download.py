@@ -163,24 +163,8 @@ ARM_MAX_DEG = 2020.0      # measured on the regeared arm
 ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees at either end
 ARM_TORQUE = 90           # percent of max
 
-# Zeroing without a switch: confirm by hand, or lower until the motor stalls.
+# Zeroing: move the arm by hand with the stick, press A.
 ARM_ZERO_SPEED = 0.25     # fraction of power for the stick while confirming
-ARM_FIND_SPEED = 15       # percent, lowering to find the bottom
-ARM_FIND_TORQUE = 25      # percent; gravity helps, so little is needed
-ARM_FIND_MAX_MS = 12000
-
-# Stall: commanded but not moving. Cut power instead of fighting the stop.
-ARM_STALL_POWER = 10      # percent; below this the arm isn't really being pushed
-ARM_STALL_DPS = 8         # slower than this counts as not moving
-ARM_STALL_MS = 300
-
-# Track slip while lifting: load (amps) suddenly drops while the stick is steady.
-SLIP_DETECT = True
-SLIP_MIN_POWER = 15       # only judge a steady lift
-SLIP_STEADY_PCT = 3       # stick must have changed less than this since last tick
-SLIP_AMP_DROP = 0.45      # amps fell below this fraction of their recent average
-SLIP_MIN_AMPS = 0.3       # ignore drops from an already-light load
-SLIP_AVG_WEIGHT = 0.1     # weight of each new reading in the running average
 
 
 # --- AI Vision ---
@@ -247,7 +231,7 @@ VISION_MAX_OBJECTS = 8
 
 # --- Shared setup ---
 
-arm_state = {"homed": False, "slips": 0}
+arm_state = {"homed": False}
 claw_state = {"zeroed": False}
 
 def say(text, second=""):
@@ -274,36 +258,9 @@ def zero_arm_here():
     arm_motor.reset_position()
     arm_state["homed"] = True
 
-def find_arm_bottom():
-    """Lower slowly at low torque until the motor stalls on the bottom stop, then call it 0."""
-    say("finding arm bottom")
-    arm_motor.set_stopping(HOLD)
-    arm_motor.set_max_torque(ARM_FIND_TORQUE, PERCENT)
-    arm_motor.spin(REVERSE, ARM_FIND_SPEED, PERCENT)
-    start = brain.timer.time(MSEC)
-    still_since = None
-    while brain.timer.time(MSEC) - start < ARM_FIND_MAX_MS:
-        now = brain.timer.time(MSEC)
-        if now - start > 400 and abs(arm_motor.velocity(DPS)) < ARM_STALL_DPS:
-            if still_since is None:
-                still_since = now
-            elif now - still_since >= ARM_STALL_MS:
-                zero_arm_here()
-                arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
-                say("arm zeroed")
-                return True
-        else:
-            still_since = None
-        wait(10, MSEC)
-    arm_motor.stop()
-    arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
-    arm_state["homed"] = False
-    say("ARM BOTTOM NOT FOUND")
-    return False
-
 def confirm_arm_zero():
-    """Ask whether the arm is at the bottom. A = yes, B = find it; right stick moves it meanwhile."""
-    say("Arm at bottom? A=yes", "B=find  Rstick=move")
+    """Move the arm with the right stick, then press A to call that position 0."""
+    say("Arm at bottom? A=yes", "Rstick^v=move")
     arm_motor.set_stopping(HOLD)
     arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
     while True:
@@ -312,22 +269,12 @@ def confirm_arm_zero():
             zero_arm_here()
             say("arm zeroed")
             return True
-        if controller.buttonB.pressing():
-            release_buttons()
-            return find_arm_bottom()
         stick = controller.axis2.position()
         if abs(stick) < ARM_DEADBAND:
             arm_motor.stop()
         else:
             arm_motor.spin(FORWARD, stick * ARM_ZERO_SPEED, PERCENT)
         wait(20, MSEC)
-
-def manipulator_init():
-    """Put the arm and claw in their start-of-match state. HOLD stops them creeping."""
-    arm_motor.set_stopping(HOLD)
-    arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
-    claw_motor.set_stopping(HOLD)
-    claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
 
 def confirm_claw_zero():
     """Ask whether the claw is fully open. A = yes (that is 0); right stick moves it meanwhile."""
@@ -951,7 +898,7 @@ def screen_line(row, text):
     brain.screen.set_cursor(row, 1)
     brain.screen.print(text)
 
-def show_motor_diagnostic(arm_note):
+def show_motor_diagnostic():
     """Every motor's rotation, the arm's load and the bumpers, on the brain screen."""
     try:
         arm_deg = arm_motor.position(DEGREES)
@@ -959,11 +906,11 @@ def show_motor_diagnostic(arm_note):
             left_motor.position(DEGREES), right_motor.position(DEGREES)))
         screen_line(4, "ARM %5d deg  %.2f rev  %4d dps" % (
             arm_deg, arm_deg / 360.0, arm_motor.velocity(DPS)))
-        screen_line(5, "arm %.2f A  %s%s" % (
-            arm_motor.current(), arm_note, "" if arm_state["homed"] else "  NOT ZEROED"))
+        screen_line(5, "arm %.2f A%s" % (
+            arm_motor.current(), "" if arm_state["homed"] else "  NOT ZEROED"))
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
-        screen_line(7, "bump C%d E%d F%d   slips %d  (X = re-zero arm)" % (
-            bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing(), arm_state["slips"]))
+        screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
+            bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
         screen_line(8, "camera: " + tags_text())
     except:
         # Never let a diagnostic take the drive down mid-match.
@@ -977,17 +924,17 @@ def tags_text():
         return "no tags"
     return "  ".join("T%d x%d w%d" % (t.id, t.centerX, t.width) for t in tags[:3])
 
-def show_controller_line(row, arm_note):
+def show_controller_line(row):
     """One of three short lines on the controller; one per call, as its screen is slow."""
     try:
         if row == 1:
             text = "ARM %d %.1fr %s" % (arm_motor.position(DEGREES), arm_motor.position(DEGREES) / 360.0,
-                                       arm_note if arm_state["homed"] else "NO ZERO")
+                                       "" if arm_state["homed"] else "NO ZERO")
         elif row == 2:
             text = "L%d R%d" % (left_motor.position(DEGREES), right_motor.position(DEGREES))
         else:
             tags = tags_text()
-            text = tags if tags != "no tags" else "CLAW %d slip %d" % (claw_motor.position(DEGREES), arm_state["slips"])
+            text = tags if tags != "no tags" else "CLAW %d" % claw_motor.position(DEGREES)
         controller.screen.clear_line(row)
         controller.screen.set_cursor(row, 1)
         controller.screen.print(text[:19])
@@ -1106,11 +1053,6 @@ def user_control():
     diag_tick = 0
     was_left = False
     was_right = False
-    stall_since = None
-    stalled = False
-    last_arm_power = 0.0
-    avg_amps = 0.0
-    arm_note = ""
     ctrl_row = 0
     controller.screen.clear_screen()
 
@@ -1118,10 +1060,9 @@ def user_control():
         if controller.buttonX.pressing():
             while controller.buttonX.pressing():
                 wait(20, MSEC)
-            find_arm_bottom()
+            confirm_arm_zero()
             brain.screen.clear_screen()
             arm_power = 0.0
-            stalled = False
 
         # Edge-triggered so a button held through cancelling doesn't restart it.
         left_now = controller.buttonLeft.pressing()
@@ -1222,37 +1163,6 @@ def user_control():
                 cap = max(8.0, 100.0 * ARM_SPEED * room / ARM_SLOW_ZONE_DEG)
                 arm_power = max(-cap, min(cap, arm_power))
 
-        # Stall: pushing but not moving. Let go until the stick is centred.
-        now = brain.timer.time(MSEC)
-        if arm_raw == 0:
-            stalled = False
-        if abs(arm_power) > ARM_STALL_POWER and abs(arm_motor.velocity(DPS)) < ARM_STALL_DPS:
-            if stall_since is None:
-                stall_since = now
-            elif now - stall_since >= ARM_STALL_MS and not stalled:
-                stalled = True
-                arm_note = "STALL"
-                controller.rumble("-")
-        else:
-            stall_since = None
-        if stalled:
-            arm_power = 0.0
-            arm_hold = True
-
-        # Slip: a steady lift whose load suddenly lets go. Warn only; X re-zeros.
-        amps = arm_motor.current()
-        steady = abs(arm_power - last_arm_power) < SLIP_STEADY_PCT
-        if SLIP_DETECT and arm_power > SLIP_MIN_POWER and steady:
-            if avg_amps > SLIP_MIN_AMPS and amps < avg_amps * SLIP_AMP_DROP:
-                arm_state["slips"] = arm_state["slips"] + 1
-                arm_note = "SLIP?"
-                controller.rumble("..")
-                avg_amps = amps    # re-baseline so one slip counts once
-            avg_amps = avg_amps + (amps - avg_amps) * SLIP_AVG_WEIGHT
-        else:
-            avg_amps = amps
-        last_arm_power = arm_power
-
         claw_power = claw_raw * CLAW_SPEED
         claw_hold = False
         if CLAW_USE_LIMITS and claw_state["zeroed"] and claw_power != 0:
@@ -1275,11 +1185,9 @@ def user_control():
             diag_tick = diag_tick + 1
             if diag_tick >= 10:          # ~5 Hz, slow enough to read
                 diag_tick = 0
-                show_motor_diagnostic(arm_note)
+                show_motor_diagnostic()
                 ctrl_row = ctrl_row % 3 + 1
-                show_controller_line(ctrl_row, arm_note)
-                if not stalled:
-                    arm_note = ""
+                show_controller_line(ctrl_row)
 
         wait(LOOP_MS, MSEC)
 

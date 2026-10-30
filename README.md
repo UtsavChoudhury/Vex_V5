@@ -45,25 +45,20 @@ the stick forward.
 | nothing held | 50% power |
 | Left arrow | cone assist: spin left until the cone is seen, then centre on it |
 | Right arrow | cone assist: spin right until the cone is seen, then centre on it |
-| X | re-zero the arm: lowers slowly until it stalls on the bottom, calls that 0 |
+| X | re-zero the arm: move it with the right stick, press A |
 
-### Arm zero, limits, stall and slip
+### Arm and claw zero, limits
 
-There is no arm switch. Every program starts with `Arm at bottom? A=yes`: move
-the arm with the right stick if needed, then **A** sets 0 there, or **B** lowers it
-slowly at low torque until the motor stalls on the bottom stop (`find_arm_bottom()`).
+Every program starts with `Arm at bottom? A=yes`: move the arm up or down with the
+right stick, then press **A** to call that position 0. Then `Claw fully open?
+A=yes` does the same for the claw (0 = open, closing goes negative).
 
 Once zeroed, the arm stops at `ARM_MIN_DEG` and `ARM_MAX_DEG` and slows over the
-last `ARM_SLOW_ZONE_DEG` at each end. Re-measure `ARM_MAX_DEG` on each new arm.
+last `ARM_SLOW_ZONE_DEG` at each end; the claw stops at 0 and `CLAW_MAX_DEG`
+(`CLAW_CLOSE_SIGN` = -1). Re-measure the arm limits on each new build.
 
-- **Stall**: pushing (over `ARM_STALL_POWER`) but slower than `ARM_STALL_DPS` for
-  `ARM_STALL_MS` cuts arm power, one long rumble, `STALL` on screen, until the
-  stick is centred. This is what protects shafts from being wound against a stop.
-- **Slip**: the tracks can skip. A skip during a steady lift shows as the arm's
-  current suddenly dropping below `SLIP_AMP_DROP` of its recent average. That
-  counts a slip, two short rumbles, `SLIP?` on screen. It only warns; press **X**
-  to re-zero. The thresholds are first guesses, so tune them against real skips
-  using the amps shown on screen.
+There is no stall or slip detection: the motor's own speed and current cannot tell
+a slack chain from a free arm, so nothing is guessed from them.
 
 The brain screen shows every motor's rotation, the arm's speed and current, the
 bumpers and the slip count (`MOTOR_DIAGNOSTIC`).
