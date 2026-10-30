@@ -351,12 +351,22 @@ def user_control():
         last_arm_power = arm_power
 
         claw_power = claw_raw * CLAW_SPEED
+        claw_hold = False
+        if CLAW_USE_LIMITS and claw_state["zeroed"] and claw_power != 0:
+            closed = claw_motor.position(DEGREES) * CLAW_CLOSE_SIGN
+            closing = claw_power * CLAW_CLOSE_SIGN > 0
+            if (closing and closed >= CLAW_MAX_DEG) or (not closing and closed <= 0):
+                claw_power = 0.0
+                claw_hold = True
 
         if arm_hold:
             arm_motor.stop()    # HOLD brakes; spin at 0 would coast
         else:
             arm_motor.spin(FORWARD, arm_power, PERCENT)
-        claw_motor.spin(FORWARD, claw_power, PERCENT)
+        if claw_hold:
+            claw_motor.stop()
+        else:
+            claw_motor.spin(FORWARD, claw_power, PERCENT)
 
         if MOTOR_DIAGNOSTIC:
             diag_tick = diag_tick + 1

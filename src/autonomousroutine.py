@@ -222,10 +222,10 @@ def arm_wait():
         wait(10, MSEC)
 
 def open_claw():
-    """Open the claw for a fixed time, so a stall can't hang autonomous."""
-    claw_motor.spin(FORWARD, AUTO_CLAW_OPEN_PCT, PERCENT)
-    wait(AUTO_CLAW_OPEN_MS, MSEC)
-    claw_motor.stop()
+    """Open the claw back to its 0 (fully open); bounded in time so a stall can't hang autonomous."""
+    claw_motor.set_stopping(HOLD)
+    claw_motor.set_timeout(AUTO_CLAW_OPEN_MS * 3, MSEC)
+    claw_motor.spin_to_position(0, DEGREES, abs(AUTO_CLAW_OPEN_PCT), PERCENT, True)
 
 AUTO_SIDE = 1               # +1 goal on the right, -1 on the left
 

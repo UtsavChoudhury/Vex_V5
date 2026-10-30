@@ -140,6 +140,12 @@ ARM_DECEL_STEP = 15.0
 
 CLAW_TORQUE = 100
 
+# Claw range: 0 = fully open (set at start), CLAW_MAX_DEG = fully closed.
+CLAW_USE_LIMITS = True
+CLAW_MAX_DEG = 100.0
+CLAW_CLOSE_SIGN = 1       # -1 if closing makes the claw position go negative
+CLAW_ZERO_SPEED = 0.30    # fraction of power for the stick while confirming
+
 # Motor rotations, arm load and bumpers on the brain screen. Turn off for comp.
 MOTOR_DIAGNOSTIC = True
 
@@ -235,6 +241,7 @@ VISION_MAX_OBJECTS = 8
 # --- Shared setup ---
 
 arm_state = {"homed": False, "slips": 0}
+claw_state = {"zeroed": False}
 
 def say(text, second=""):
     """A line (and optional second line) on the brain and the controller."""
@@ -314,3 +321,29 @@ def manipulator_init():
     arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
     claw_motor.set_stopping(HOLD)
     claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
+
+def confirm_claw_zero():
+    """Ask whether the claw is fully open. A = yes (that is 0); right stick moves it meanwhile."""
+    say("Claw fully open? A=yes", "Rstick<>=move")
+    claw_motor.set_stopping(HOLD)
+    claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
+    while True:
+        if controller.buttonA.pressing():
+            release_buttons()
+            claw_motor.stop()
+            wait(100, MSEC)
+            claw_motor.reset_position()
+            claw_state["zeroed"] = True
+            say("claw zeroed")
+            return True
+        stick = controller.axis1.position()
+        if abs(stick) < CLAW_DEADBAND:
+            claw_motor.stop()
+        else:
+            claw_motor.spin(FORWARD, stick * CLAW_ZERO_SPEED, PERCENT)
+        wait(20, MSEC)
+
+def confirm_zero():
+    """Start-of-program checks: arm at the bottom, then claw fully open."""
+    confirm_arm_zero()
+    confirm_claw_zero()

@@ -147,6 +147,12 @@ ARM_DECEL_STEP = 15.0
 
 CLAW_TORQUE = 100
 
+# Claw range: 0 = fully open (set at start), CLAW_MAX_DEG = fully closed.
+CLAW_USE_LIMITS = True
+CLAW_MAX_DEG = 100.0
+CLAW_CLOSE_SIGN = 1       # -1 if closing makes the claw position go negative
+CLAW_ZERO_SPEED = 0.30    # fraction of power for the stick while confirming
+
 # Motor rotations, arm load and bumpers on the brain screen. Turn off for comp.
 MOTOR_DIAGNOSTIC = True
 
@@ -242,6 +248,7 @@ VISION_MAX_OBJECTS = 8
 # --- Shared setup ---
 
 arm_state = {"homed": False, "slips": 0}
+claw_state = {"zeroed": False}
 
 def say(text, second=""):
     """A line (and optional second line) on the brain and the controller."""
@@ -321,6 +328,32 @@ def manipulator_init():
     arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
     claw_motor.set_stopping(HOLD)
     claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
+
+def confirm_claw_zero():
+    """Ask whether the claw is fully open. A = yes (that is 0); right stick moves it meanwhile."""
+    say("Claw fully open? A=yes", "Rstick<>=move")
+    claw_motor.set_stopping(HOLD)
+    claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
+    while True:
+        if controller.buttonA.pressing():
+            release_buttons()
+            claw_motor.stop()
+            wait(100, MSEC)
+            claw_motor.reset_position()
+            claw_state["zeroed"] = True
+            say("claw zeroed")
+            return True
+        stick = controller.axis1.position()
+        if abs(stick) < CLAW_DEADBAND:
+            claw_motor.stop()
+        else:
+            claw_motor.spin(FORWARD, stick * CLAW_ZERO_SPEED, PERCENT)
+        wait(20, MSEC)
+
+def confirm_zero():
+    """Start-of-program checks: arm at the bottom, then claw fully open."""
+    confirm_arm_zero()
+    confirm_claw_zero()
 
 
 # ======================== vision.py ========================
@@ -804,10 +837,10 @@ def arm_wait():
         wait(10, MSEC)
 
 def open_claw():
-    """Open the claw for a fixed time, so a stall can't hang autonomous."""
-    claw_motor.spin(FORWARD, AUTO_CLAW_OPEN_PCT, PERCENT)
-    wait(AUTO_CLAW_OPEN_MS, MSEC)
-    claw_motor.stop()
+    """Open the claw back to its 0 (fully open); bounded in time so a stall can't hang autonomous."""
+    claw_motor.set_stopping(HOLD)
+    claw_motor.set_timeout(AUTO_CLAW_OPEN_MS * 3, MSEC)
+    claw_motor.spin_to_position(0, DEGREES, abs(AUTO_CLAW_OPEN_PCT), PERCENT, True)
 
 AUTO_SIDE = 1               # +1 goal on the right, -1 on the left
 
@@ -1221,12 +1254,22 @@ def user_control():
         last_arm_power = arm_power
 
         claw_power = claw_raw * CLAW_SPEED
+        claw_hold = False
+        if CLAW_USE_LIMITS and claw_state["zeroed"] and claw_power != 0:
+            closed = claw_motor.position(DEGREES) * CLAW_CLOSE_SIGN
+            closing = claw_power * CLAW_CLOSE_SIGN > 0
+            if (closing and closed >= CLAW_MAX_DEG) or (not closing and closed <= 0):
+                claw_power = 0.0
+                claw_hold = True
 
         if arm_hold:
             arm_motor.stop()    # HOLD brakes; spin at 0 would coast
         else:
             arm_motor.spin(FORWARD, arm_power, PERCENT)
-        claw_motor.spin(FORWARD, claw_power, PERCENT)
+        if claw_hold:
+            claw_motor.stop()
+        else:
+            claw_motor.spin(FORWARD, claw_power, PERCENT)
 
         if MOTOR_DIAGNOSTIC:
             diag_tick = diag_tick + 1
@@ -1253,7 +1296,7 @@ def user_control():
 
 def driver():
     """Slot 1: manual control only."""
-    confirm_arm_zero()
+    confirm_zero()
     user_control()
 
 def show_both(row, text):
@@ -1275,7 +1318,7 @@ def read_side():
 
 def auto_on_button():
     """Slot 2: arrow towards the goal starts autonomous, then the driver takes over."""
-    confirm_arm_zero()
+    confirm_zero()
     brain.screen.clear_screen()
     controller.screen.clear_screen()
     show_both(1, "AUTO: < or > goal")
@@ -1294,7 +1337,7 @@ def auto_on_button():
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
     global competition
-    confirm_arm_zero()
+    confirm_zero()
     competition = Competition(user_control, autonomous)
     brain.screen.clear_screen()
     controller.screen.clear_screen()
