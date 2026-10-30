@@ -302,6 +302,13 @@ def confirm_zero():
     confirm_arm_zero()
     confirm_claw_zero()
 
+def manipulator_init():
+    """Put the arm and claw in their start-of-match state. HOLD stops them creeping."""
+    arm_motor.set_stopping(HOLD)
+    arm_motor.set_max_torque(ARM_TORQUE, PERCENT)
+    claw_motor.set_stopping(HOLD)
+    claw_motor.set_max_torque(CLAW_TORQUE, PERCENT)
+
 
 # ======================== vision.py ========================
 
