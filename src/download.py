@@ -149,7 +149,7 @@ CLAW_TORQUE = 100
 
 # Claw range: 0 = fully open (set at start), CLAW_MAX_DEG = fully closed.
 CLAW_USE_LIMITS = True
-CLAW_MAX_DEG = 100.0
+CLAW_MAX_DEG = 120.0
 CLAW_CLOSE_SIGN = -1      # closing takes the claw position negative (0 open, -100 closed)
 CLAW_ZERO_SPEED = 0.30    # fraction of power for the stick while confirming
 
@@ -1274,7 +1274,7 @@ def main():
     # cone_detector()
     # turn_tuner()
     # match()
-    driver()
-    # auto_on_button()
+    # driver()
+    auto_on_button()
 
 main()

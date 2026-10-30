@@ -76,7 +76,7 @@ def main():
     # cone_detector()
     # turn_tuner()
     # match()
-    driver()
-    # auto_on_button()
+    # driver()
+    auto_on_button()
 
 main()
