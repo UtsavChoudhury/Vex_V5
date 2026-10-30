@@ -227,6 +227,10 @@ VISION_MAX_OBJECTS = 8
 arm_state = {"homed": False}
 claw_state = {"zeroed": False}
 
+def log(text):
+    """Timed line in the VS Code terminal (print goes nowhere if not tethered)."""
+    print("[%6d ms] %s" % (brain.timer.time(MSEC), text))
+
 def say(text, second=""):
     """A line (and optional second line) on the brain and the controller."""
     brain.screen.clear_screen()

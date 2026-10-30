@@ -89,6 +89,8 @@ def approach_tag(tag_id):
             if (not seen and brain.timer.time(MSEC) - start > TAG_FIND_MS) or (seen and misses >= TAG_LOST_FRAMES):
                 break
         else:
+            if not seen:
+                log("tag %d first seen: x %d w %d" % (tag_id, tag.centerX, tag.width))
             seen = True
             misses = 0
             error = tag.centerX - TAG_CENTER_X
@@ -99,6 +101,7 @@ def approach_tag(tag_id):
                 centred = centred + 1 if abs(error) <= TAG_TOLERANCE_PX else 0
                 if centred >= 3:
                     set_drive(0, 0)
+                    log("tag centred: x %d w %d" % (tag.centerX, tag.width))
                     return (True, drive_position() - start_pos)
             else:
                 centred = 0
@@ -106,6 +109,7 @@ def approach_tag(tag_id):
                 set_drive(forward, turn)
         wait(VISION_LOOP_MS, MSEC)
     set_drive(0, 0)
+    log("tag not reached, seen=%s" % seen)
     return (False, drive_position() - start_pos)
 
 def tag_report():

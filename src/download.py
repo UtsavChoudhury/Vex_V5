@@ -234,6 +234,10 @@ VISION_MAX_OBJECTS = 8
 arm_state = {"homed": False}
 claw_state = {"zeroed": False}
 
+def log(text):
+    """Timed line in the VS Code terminal (print goes nowhere if not tethered)."""
+    print("[%6d ms] %s" % (brain.timer.time(MSEC), text))
+
 def say(text, second=""):
     """A line (and optional second line) on the brain and the controller."""
     brain.screen.clear_screen()
@@ -401,6 +405,8 @@ def approach_tag(tag_id):
             if (not seen and brain.timer.time(MSEC) - start > TAG_FIND_MS) or (seen and misses >= TAG_LOST_FRAMES):
                 break
         else:
+            if not seen:
+                log("tag %d first seen: x %d w %d" % (tag_id, tag.centerX, tag.width))
             seen = True
             misses = 0
             error = tag.centerX - TAG_CENTER_X
@@ -411,6 +417,7 @@ def approach_tag(tag_id):
                 centred = centred + 1 if abs(error) <= TAG_TOLERANCE_PX else 0
                 if centred >= 3:
                     set_drive(0, 0)
+                    log("tag centred: x %d w %d" % (tag.centerX, tag.width))
                     return (True, drive_position() - start_pos)
             else:
                 centred = 0
@@ -418,6 +425,7 @@ def approach_tag(tag_id):
                 set_drive(forward, turn)
         wait(VISION_LOOP_MS, MSEC)
     set_drive(0, 0)
+    log("tag not reached, seen=%s" % seen)
     return (False, drive_position() - start_pos)
 
 def tag_report():
@@ -822,23 +830,30 @@ def to_goal(fallback_mm):
 
 def autonomous():
     """Override: mid-wall start, out a tile, turn, steer to the alliance goal's tag, place the preload."""
+    log("AUTO start, side %d" % AUTO_SIDE)
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
-    square_to_wall(AUTO_SEAT_MS)
+    log("square to wall: %s" % square_to_wall(AUTO_SEAT_MS))
     # Lift during the first leg; it is the slowest part of the routine.
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
+    log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
     arm_wait()
+    log("arm at carry, %d" % arm_motor.position(DEGREES))
     settle()
     turn(90 * AUTO_SIDE)
+    log("turned")
     settle()
-    to_goal(AUTO_LEG2_MM)
+    log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
+    log("arm at place, %d" % arm_motor.position(DEGREES))
     open_claw()
+    log("claw open, %d" % claw_motor.position(DEGREES))
     arm_to(AUTO_ARM_CARRY_DEG)
     drive(-AUTO_BACKOFF_MM, AUTO_GOAL_SPEED)
+    log("AUTO done")
 
 def autonomous_s_path():
     """S -> wall square -> lift arm -> A -> turn right -> B -> release arm."""

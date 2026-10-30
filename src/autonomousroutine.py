@@ -253,23 +253,30 @@ def to_goal(fallback_mm):
 
 def autonomous():
     """Override: mid-wall start, out a tile, turn, steer to the alliance goal's tag, place the preload."""
+    log("AUTO start, side %d" % AUTO_SIDE)
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
-    square_to_wall(AUTO_SEAT_MS)
+    log("square to wall: %s" % square_to_wall(AUTO_SEAT_MS))
     # Lift during the first leg; it is the slowest part of the routine.
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
+    log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
     arm_wait()
+    log("arm at carry, %d" % arm_motor.position(DEGREES))
     settle()
     turn(90 * AUTO_SIDE)
+    log("turned")
     settle()
-    to_goal(AUTO_LEG2_MM)
+    log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
+    log("arm at place, %d" % arm_motor.position(DEGREES))
     open_claw()
+    log("claw open, %d" % claw_motor.position(DEGREES))
     arm_to(AUTO_ARM_CARRY_DEG)
     drive(-AUTO_BACKOFF_MM, AUTO_GOAL_SPEED)
+    log("AUTO done")
 
 def autonomous_s_path():
     """S -> wall square -> lift arm -> A -> turn right -> B -> release arm."""
