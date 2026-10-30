@@ -150,9 +150,9 @@ CLAW_TORQUE = 100
 # Motor rotations, arm load and bumpers on the brain screen. Turn off for comp.
 MOTOR_DIAGNOSTIC = True
 
-ARM_USE_LIMITS = False    # off while calibrating the new gearing; stall cut-out stays on
+ARM_USE_LIMITS = True
 ARM_MIN_DEG = 0.0
-ARM_MAX_DEG = 1025.0      # old robot's top was 1040; re-measure on the new one
+ARM_MAX_DEG = 2020.0      # measured on the regeared arm
 
 ARM_SLOW_ZONE_DEG = 250   # arm tapers to a crawl over the last this many degrees at either end
 ARM_TORQUE = 50           # percent of max; a stalled arm can't twist a rod this hard
