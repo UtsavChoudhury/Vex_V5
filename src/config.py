@@ -141,7 +141,7 @@ ARM_DECEL_STEP = 15.0
 CLAW_TORQUE = 100
 
 # Claw range: 0 = fully open (set at start), CLAW_MAX_DEG = fully closed.
-CLAW_USE_LIMITS = False   # off: the claw must open wider than the start zero for a cup
+CLAW_USE_LIMITS = True
 CLAW_MAX_DEG = 120.0
 CLAW_CLOSE_SIGN = -1      # closing takes the claw position negative (0 open, -100 closed)
 CLAW_ZERO_SPEED = 0.30    # fraction of power for the stick while confirming
