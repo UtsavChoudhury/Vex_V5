@@ -31,7 +31,7 @@ EXTERNAL_GEAR_RATIO = 1.0     # motor revolutions per wheel revolution
 WHEEL_TRAVEL_MM = PI * WHEEL_DIAMETER_MM
 
 DRIVE_SCALE = 1.00
-TURN_SCALE = 1.10        # field test: 90 still turning a little short
+TURN_SCALE = 1.21        # 90 was ~10 degrees short at 1.10
 
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent

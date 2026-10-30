@@ -47,7 +47,7 @@ def turn(degrees, speed=AUTO_TURN_SPEED):
     wheel_deg = wheel_degrees_for_turn(degrees)
     move_wheels(wheel_deg, -wheel_deg, speed)
 
-def settle(timeout_ms=300):
+def settle(timeout_ms=150):
     """Brief pause after a move so momentum doesn't bleed into the next segment."""
     wait(timeout_ms, MSEC)
 

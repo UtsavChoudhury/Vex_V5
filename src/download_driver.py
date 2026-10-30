@@ -38,7 +38,7 @@ EXTERNAL_GEAR_RATIO = 1.0     # motor revolutions per wheel revolution
 WHEEL_TRAVEL_MM = PI * WHEEL_DIAMETER_MM
 
 DRIVE_SCALE = 1.00
-TURN_SCALE = 1.10        # field test: 90 still turning a little short
+TURN_SCALE = 1.21        # 90 was ~10 degrees short at 1.10
 
 # Autonomous move settings.
 AUTO_DRIVE_SPEED = 50     # percent
@@ -625,7 +625,7 @@ def turn(degrees, speed=AUTO_TURN_SPEED):
     wheel_deg = wheel_degrees_for_turn(degrees)
     move_wheels(wheel_deg, -wheel_deg, speed)
 
-def settle(timeout_ms=300):
+def settle(timeout_ms=150):
     """Brief pause after a move so momentum doesn't bleed into the next segment."""
     wait(timeout_ms, MSEC)
 
