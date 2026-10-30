@@ -200,11 +200,12 @@ ai_vision.color_detection(True)
 # Every Override goal carries an AprilTag (manual Appendix A16). Alliance goals
 # are tag 2 (alliance-station side quadrant) and tag 3; neutrals 1 and 4; centre 0.
 TAG_FAMILY = AiVision.TAG_CIRCLE21H7   # notched-square tags on the goals; check with tag_report()
-try:
-    ai_vision.set_tag_family(TAG_FAMILY)
-    ai_vision.tag_detection(True)
-except:
-    pass
+# Camera off for now: tag detection not enabled.
+# try:
+#     ai_vision.set_tag_family(TAG_FAMILY)
+#     ai_vision.tag_detection(True)
+# except:
+#     pass
 
 TAG_FOR_SIDE = {1: 2, -1: 3}     # arrow pressed -> goal tag; see README.md
 TAG_CENTER_X = 160               # tag centerX when the claw lines up with the goal
@@ -845,7 +846,9 @@ def autonomous():
     turn(90 * AUTO_SIDE)
     log("turned")
     settle()
-    log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
+    # Camera off for now: tag approach commented out, drive the distance instead.
+    # log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
+    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
     log("arm at place, %d" % arm_motor.position(DEGREES))
@@ -933,7 +936,7 @@ def show_motor_diagnostic():
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
         screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
-        screen_line(8, "camera: " + tags_text())
+        # screen_line(8, "camera: " + tags_text())    # camera off for now
     except:
         # Never let a diagnostic take the drive down mid-match.
         screen_line(5, "diagnostic error")
@@ -955,8 +958,8 @@ def show_controller_line(row):
         elif row == 2:
             text = "L%d R%d" % (left_motor.position(DEGREES), right_motor.position(DEGREES))
         else:
-            tags = tags_text()
-            text = tags if tags != "no tags" else "CLAW %d" % claw_motor.position(DEGREES)
+            # tags = tags_text()    # camera off for now
+            text = "CLAW %d" % claw_motor.position(DEGREES)
         controller.screen.clear_line(row)
         controller.screen.set_cursor(row, 1)
         controller.screen.print(text[:19])

@@ -61,7 +61,7 @@ def show_motor_diagnostic():
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
         screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
-        screen_line(8, "camera: " + tags_text())
+        # screen_line(8, "camera: " + tags_text())    # camera off for now
     except:
         # Never let a diagnostic take the drive down mid-match.
         screen_line(5, "diagnostic error")
@@ -83,8 +83,8 @@ def show_controller_line(row):
         elif row == 2:
             text = "L%d R%d" % (left_motor.position(DEGREES), right_motor.position(DEGREES))
         else:
-            tags = tags_text()
-            text = tags if tags != "no tags" else "CLAW %d" % claw_motor.position(DEGREES)
+            # tags = tags_text()    # camera off for now
+            text = "CLAW %d" % claw_motor.position(DEGREES)
         controller.screen.clear_line(row)
         controller.screen.set_cursor(row, 1)
         controller.screen.print(text[:19])

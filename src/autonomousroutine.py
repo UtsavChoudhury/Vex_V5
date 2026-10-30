@@ -268,7 +268,9 @@ def autonomous():
     turn(90 * AUTO_SIDE)
     log("turned")
     settle()
-    log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
+    # Camera off for now: tag approach commented out, drive the distance instead.
+    # log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
+    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
     settle()
     arm_to(AUTO_ARM_PLACE_DEG)
     log("arm at place, %d" % arm_motor.position(DEGREES))

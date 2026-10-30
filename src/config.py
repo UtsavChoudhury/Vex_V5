@@ -193,11 +193,12 @@ ai_vision.color_detection(True)
 # Every Override goal carries an AprilTag (manual Appendix A16). Alliance goals
 # are tag 2 (alliance-station side quadrant) and tag 3; neutrals 1 and 4; centre 0.
 TAG_FAMILY = AiVision.TAG_CIRCLE21H7   # notched-square tags on the goals; check with tag_report()
-try:
-    ai_vision.set_tag_family(TAG_FAMILY)
-    ai_vision.tag_detection(True)
-except:
-    pass
+# Camera off for now: tag detection not enabled.
+# try:
+#     ai_vision.set_tag_family(TAG_FAMILY)
+#     ai_vision.tag_detection(True)
+# except:
+#     pass
 
 TAG_FOR_SIDE = {1: 2, -1: 3}     # arrow pressed -> goal tag; see README.md
 TAG_CENTER_X = 160               # tag centerX when the claw lines up with the goal
