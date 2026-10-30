@@ -55,7 +55,7 @@ AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
 AUTO_LEG2_MM = 370        # after the turn; +50 mm so the claw is over the goal
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
-AUTO_ARM_PLACE_DEG = 600  # pin bottom inside the goal
+AUTO_ARM_PLACE_DEG = 300  # first guess for "20 cm lower"; set from the ARM number once measured
 AUTO_CLAW_OPEN_PCT = 50   # sign = the claw direction that opens
 AUTO_CLAW_OPEN_MS = 400
 AUTO_BACKOFF_MM = 150
