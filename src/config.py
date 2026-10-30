@@ -52,7 +52,7 @@ ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ de
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
 # Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
 AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
-AUTO_LEG2_MM = 370        # after the turn; +50 mm so the claw is over the goal
+AUTO_LEG2_MM = 420        # after the turn; +50 mm so the claw is over the goal
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
 AUTO_ARM_PLACE_DEG = 300  # first guess for "20 cm lower"; set from the ARM number once measured
