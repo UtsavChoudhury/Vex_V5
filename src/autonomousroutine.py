@@ -306,14 +306,14 @@ def autonomous():
     # Already on the wall by the start rule; this only seats it square.
     square_to_wall(0)
     log("squared to wall")
-    # Flip the toggle (and lift the arm meanwhile) before going forward.
+    # Step 1 cm off the wall so nothing is pressing on the robot, then flip the toggle
+    # (arm lifting meanwhile) with the wheels still.
+    drive(TOGGLE_STANDOFF_MM, AUTO_GOAL_SPEED)
+    log("stepped off the wall")
     toggle_start()
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
-    # Keep the back pressed into the wall so the toggle's kick can't swing the robot.
-    left_motor.spin(REVERSE, TOGGLE_WALL_PUSH_PCT, PERCENT)
-    right_motor.spin(REVERSE, TOGGLE_WALL_PUSH_PCT, PERCENT)
     toggle_wait()
-    # Then go back until both back bumpers are in again, whatever the toggle did.
+    # Then back all the way again until both back bumpers are in, whatever the toggle did.
     square_to_wall(0)
     log("re-squared after toggle")
     log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))

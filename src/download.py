@@ -104,7 +104,7 @@ TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
 TOGGLE_AUTO_SPEED = 80    # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
-TOGGLE_WALL_PUSH_PCT = 20  # drive pressed into the wall while the toggle spins, so the robot can't swing
+TOGGLE_STANDOFF_MM = 10    # step off the wall by this much before the toggle spins; the wheels stay still
 TOGGLE_AUTO_TORQUE = 40    # percent of max in autonomous
 TOGGLE_AUTO_TURNS = 2.25      # autonomous spins it backward (like L2) this many motor rotations before moving
 
@@ -575,14 +575,14 @@ def autonomous():
     # Already on the wall by the start rule; this only seats it square.
     square_to_wall(0)
     log("squared to wall")
-    # Flip the toggle (and lift the arm meanwhile) before going forward.
+    # Step 1 cm off the wall so nothing is pressing on the robot, then flip the toggle
+    # (arm lifting meanwhile) with the wheels still.
+    drive(TOGGLE_STANDOFF_MM, AUTO_GOAL_SPEED)
+    log("stepped off the wall")
     toggle_start()
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
-    # Keep the back pressed into the wall so the toggle's kick can't swing the robot.
-    left_motor.spin(REVERSE, TOGGLE_WALL_PUSH_PCT, PERCENT)
-    right_motor.spin(REVERSE, TOGGLE_WALL_PUSH_PCT, PERCENT)
     toggle_wait()
-    # Then go back until both back bumpers are in again, whatever the toggle did.
+    # Then back all the way again until both back bumpers are in, whatever the toggle did.
     square_to_wall(0)
     log("re-squared after toggle")
     log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))
