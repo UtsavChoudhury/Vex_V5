@@ -42,7 +42,7 @@ AUTO_GOAL_TURN_DEG = 90.5  # the turn towards the goal in autonomous (was 88.5; 
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
 WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
-WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
+WALL_SQUARE_MAX_MS = 2000 # no wall by then = stop backing up and carry on
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
 AUTO_ARM_SPEED = 100

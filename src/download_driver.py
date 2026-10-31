@@ -49,7 +49,7 @@ AUTO_GOAL_TURN_DEG = 90.5  # the turn towards the goal in autonomous (was 88.5; 
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
 WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
-WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
+WALL_SQUARE_MAX_MS = 2000 # no wall by then = stop backing up and carry on
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
 AUTO_ARM_SPEED = 100
@@ -573,8 +573,7 @@ def autonomous():
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
-    square_to_wall(0)
-    log("squared to wall")
+    log("squared to wall: %s" % square_to_wall())
     # Step 1 cm off the wall so nothing is pressing on the robot, then flip the toggle
     # (arm lifting meanwhile) with the wheels still.
     drive(TOGGLE_STANDOFF_MM, AUTO_GOAL_SPEED)
@@ -583,8 +582,7 @@ def autonomous():
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     toggle_wait()
     # Then back all the way again until both back bumpers are in, whatever the toggle did.
-    square_to_wall(0)
-    log("re-squared after toggle")
+    log("re-squared after toggle: %s" % square_to_wall())
     log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
@@ -678,7 +676,7 @@ def show_motor_diagnostic():
         screen_line(5, "arm %.2f A%s" % (
             arm_motor.current(), "" if arm_state["homed"] else "  NOT ZEROED"))
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
-        screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
+        screen_line(7, "bump C%d E%d F%d" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
     except:
         # Never let a diagnostic take the drive down mid-match.
@@ -731,13 +729,6 @@ def user_control(arrow_reruns=False):
     controller.screen.clear_screen()
 
     while True:
-        if controller.buttonX.pressing():
-            while controller.buttonX.pressing():
-                wait(20, MSEC)
-            confirm_arm_zero()
-            brain.screen.clear_screen()
-            arm_power = 0.0
-
         if arrow_reruns:
             left_now = controller.buttonLeft.pressing()
             right_now = controller.buttonRight.pressing()

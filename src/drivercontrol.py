@@ -59,7 +59,7 @@ def show_motor_diagnostic():
         screen_line(5, "arm %.2f A%s" % (
             arm_motor.current(), "" if arm_state["homed"] else "  NOT ZEROED"))
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
-        screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
+        screen_line(7, "bump C%d E%d F%d" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
     except:
         # Never let a diagnostic take the drive down mid-match.
@@ -112,13 +112,6 @@ def user_control(arrow_reruns=False):
     controller.screen.clear_screen()
 
     while True:
-        if controller.buttonX.pressing():
-            while controller.buttonX.pressing():
-                wait(20, MSEC)
-            confirm_arm_zero()
-            brain.screen.clear_screen()
-            arm_power = 0.0
-
         if arrow_reruns:
             left_now = controller.buttonLeft.pressing()
             right_now = controller.buttonRight.pressing()

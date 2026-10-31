@@ -304,8 +304,7 @@ def autonomous():
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
-    square_to_wall(0)
-    log("squared to wall")
+    log("squared to wall: %s" % square_to_wall())
     # Step 1 cm off the wall so nothing is pressing on the robot, then flip the toggle
     # (arm lifting meanwhile) with the wheels still.
     drive(TOGGLE_STANDOFF_MM, AUTO_GOAL_SPEED)
@@ -314,8 +313,7 @@ def autonomous():
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     toggle_wait()
     # Then back all the way again until both back bumpers are in, whatever the toggle did.
-    square_to_wall(0)
-    log("re-squared after toggle")
+    log("re-squared after toggle: %s" % square_to_wall())
     log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
