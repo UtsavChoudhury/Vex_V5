@@ -96,9 +96,9 @@ claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
-TOGGLE_AUTO_SPEED = 80     # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
+TOGGLE_AUTO_SPEED = 80    # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
 TOGGLE_WALL_PUSH_PCT = 20  # drive pressed into the wall while the toggle spins, so the robot can't swing
-TOGGLE_AUTO_TORQUE = 90    # percent of max in autonomous
+TOGGLE_AUTO_TORQUE = 40    # percent of max in autonomous
 TOGGLE_AUTO_TURNS = 2.25      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 

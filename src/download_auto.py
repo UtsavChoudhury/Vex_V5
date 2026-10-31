@@ -103,9 +103,9 @@ claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
-TOGGLE_AUTO_SPEED = 80     # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
+TOGGLE_AUTO_SPEED = 80    # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
 TOGGLE_WALL_PUSH_PCT = 20  # drive pressed into the wall while the toggle spins, so the robot can't swing
-TOGGLE_AUTO_TORQUE = 90    # percent of max in autonomous
+TOGGLE_AUTO_TORQUE = 40    # percent of max in autonomous
 TOGGLE_AUTO_TURNS = 2.25      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 
@@ -550,12 +550,22 @@ def toggle_start(rotations=TOGGLE_AUTO_TURNS):
     toggle_motor.set_max_torque(TOGGLE_AUTO_TORQUE, PERCENT)
     toggle_motor.set_timeout(4000, MSEC)
     toggle_motor.reset_position()
+    log("toggle start: target %.2f rev, speed %d%%, torque %d%%" % (rotations, TOGGLE_AUTO_SPEED, TOGGLE_AUTO_TORQUE))
     toggle_motor.spin_for(REVERSE, rotations, TURNS, TOGGLE_AUTO_SPEED, PERCENT, wait=False)
 
 def toggle_wait():
-    """Block until the toggle motor has finished (or timed out)."""
+    """Block until the toggle motor has finished (or timed out), logging its position every 100 ms."""
+    start = brain.timer.time(MSEC)
+    last = -1000
     while toggle_motor.is_spinning():
+        now = brain.timer.time(MSEC)
+        if now - last >= 100:
+            last = now
+            log("toggle %.2f rev  %d dps  %.2f A" % (
+                toggle_motor.position(TURNS), toggle_motor.velocity(DPS), toggle_motor.current()))
         wait(10, MSEC)
+    log("toggle stopped at %.2f rev after %d ms" % (
+        toggle_motor.position(TURNS), brain.timer.time(MSEC) - start))
 
 def autonomous():
     """Override: mid-wall start, flip the toggle, out a tile, turn, drive in, place the preload."""
@@ -575,7 +585,7 @@ def autonomous():
     # Then go back until both back bumpers are in again, whatever the toggle did.
     square_to_wall(0)
     log("re-squared after toggle")
-    log("toggle done: %.2f rotations" % toggle_motor.position(TURNS))
+    log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
     arm_wait()
