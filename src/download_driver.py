@@ -103,9 +103,9 @@ claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
-TOGGLE_AUTO_SPEED = 80    # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
+TOGGLE_AUTO_SPEED = 70    # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
 TOGGLE_STANDOFF_MM = 10    # step off the wall by this much before the toggle spins; the wheels stay still
-TOGGLE_AUTO_TORQUE = 40    # percent of max in autonomous
+TOGGLE_AUTO_TORQUE = 80    # percent of max in autonomous
 TOGGLE_AUTO_TURNS = 2.25      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 
@@ -968,8 +968,8 @@ def match():
 
 def main():
     # turn_tuner()
-    # match()
+    match()
     # driver()
-    auto_on_button()
+    # auto_on_button()
 
 driver()
