@@ -61,7 +61,7 @@ def auto_on_button():
     show_both(1, "AUTO running")
     autonomous()
     show_both(1, "AUTO done")
-    user_control()
+    user_control(True)
 
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""

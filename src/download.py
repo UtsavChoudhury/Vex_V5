@@ -675,11 +675,15 @@ def show_controller_line(row):
 
 # --- Driver loop ---
 
-def user_control():
+def user_control(arrow_reruns=False):
+    """Arcade drive. With arrow_reruns, Left/Right run autonomous again (test mode only)."""
     brain.screen.clear_screen()
     brain.screen.print("Slow Drive / Fast Turn")
     brain.screen.next_row()
     brain.screen.print("L=port6  R=port4  invert=" + str(INVERT_DRIVE))
+    if arrow_reruns:
+        brain.screen.next_row()
+        brain.screen.print("< / > = run auto again")
 
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
@@ -694,6 +698,8 @@ def user_control():
     arm_power = 0.0
     diag_tick = 0
     ctrl_row = 0
+    was_left = False
+    was_right = False
     controller.screen.clear_screen()
 
     while True:
@@ -703,6 +709,31 @@ def user_control():
             confirm_arm_zero()
             brain.screen.clear_screen()
             arm_power = 0.0
+
+        if arrow_reruns:
+            left_now = controller.buttonLeft.pressing()
+            right_now = controller.buttonRight.pressing()
+            if (left_now and not was_left) or (right_now and not was_right):
+                set_auto_side(-1 if (left_now and not was_left) else 1)
+                while controller.buttonLeft.pressing() or controller.buttonRight.pressing():
+                    wait(20, MSEC)
+                left_motor.stop()
+                right_motor.stop()
+                arm_motor.stop()
+                claw_motor.stop()
+                autonomous()
+                # Back to manual: drive motors brake again, screens and ramps start fresh.
+                left_motor.set_stopping(BRAKE)
+                right_motor.set_stopping(BRAKE)
+                brain.screen.clear_screen()
+                controller.screen.clear_screen()
+                forward_power = 0.0
+                turn_power = 0.0
+                arm_power = 0.0
+                left_now = False
+                right_now = False
+            was_left = left_now
+            was_right = right_now
 
         forward_raw = controller.axis3.position()
         turn_raw = controller.axis4.position()
@@ -885,7 +916,7 @@ def auto_on_button():
     show_both(1, "AUTO running")
     autonomous()
     show_both(1, "AUTO done")
-    user_control()
+    user_control(True)
 
 def match():
     """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
