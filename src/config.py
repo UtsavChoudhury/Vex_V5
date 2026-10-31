@@ -98,7 +98,8 @@ TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
 TOGGLE_AUTO_SPEED = 80     # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
 TOGGLE_WALL_PUSH_PCT = 20  # drive pressed into the wall while the toggle spins, so the robot can't swing
-TOGGLE_AUTO_TURNS = 2      # autonomous spins it backward (like L2) this many motor rotations before moving
+TOGGLE_AUTO_TORQUE = 50    # percent of max in autonomous: less push on the toggle, less overshoot
+TOGGLE_AUTO_TURNS = 2.25      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 
 # --- Driver tuning ---

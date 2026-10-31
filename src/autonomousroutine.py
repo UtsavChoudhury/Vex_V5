@@ -20,6 +20,11 @@ def move_timeout_ms(wheel_deg, speed):
     dps = max(1.0, (abs(speed) / 100.0) * MOTOR_MAX_DPS)
     return int((abs(wheel_deg) / dps) * 1000.0 * TIMEOUT_MARGIN) + TIMEOUT_FLOOR_MS
 
+def free_drive_timeouts():
+    """move_wheels leaves a short time limit on the motors; spin() moves need it lifted."""
+    left_motor.set_timeout(600000, MSEC)
+    right_motor.set_timeout(600000, MSEC)
+
 def move_wheels(left_deg, right_deg, speed, timeout_ms=None):
     """Spin both sides through a set number of shaft degrees and wait for both."""
     if timeout_ms is None:
@@ -35,6 +40,7 @@ def move_wheels(left_deg, right_deg, speed, timeout_ms=None):
 
     while left_motor.is_spinning() or right_motor.is_spinning():
         wait(10, MSEC)
+    free_drive_timeouts()
 
 def drive(distance_mm, speed=AUTO_DRIVE_SPEED):
     """Drive straight. Positive = forward, negative = backward."""
@@ -177,6 +183,7 @@ def bumper_status(text):
 
 def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
     """Back up until both bumpers are pressed, then keep pushing for WALL_SQUARE_PUSH_MS."""
+    free_drive_timeouts()
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     bumper_status("wall")
@@ -236,17 +243,18 @@ def drive_until_collision(speed=AUTO_GOAL_SPEED, max_ms=COLLISION_MAX_MS):
     """Drive straight until the front bumper is pressed (waits up to max_ms), then back off with the arm lowering."""
     start = brain.timer.time(MSEC)
 
+    free_drive_timeouts()
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     bumper_status("driving to the button")
-    log("driving forward until the front bumper hits (waits up to %d ms)" % max_ms)
+    log("driving forward until the front bumper hits (waits up to %d ms), front pressed now: %s" % (max_ms, bumper_front.pressing()))
 
     left_motor.spin(FORWARD, speed, PERCENT)
     right_motor.spin(FORWARD, speed, PERCENT)
 
     while True:
         if bumper_front.pressing():
-            log("FRONT COLLISION DETECTED")
+            log("FRONT COLLISION DETECTED after %d ms" % (brain.timer.time(MSEC) - start))
             bumper_status("HIT")
             break
         if brain.timer.time(MSEC) - start > max_ms:
@@ -269,8 +277,8 @@ def set_auto_side(side):
 
 def toggle_start(rotations=TOGGLE_AUTO_TURNS):
     """Spin the toggle motor backward (L2 direction) a set number of rotations, without waiting."""
-    toggle_motor.set_stopping(BRAKE)
-    toggle_motor.set_max_torque(100, PERCENT)
+    toggle_motor.set_stopping(HOLD)      # servo to the target, so it can't coast on past a rotation
+    toggle_motor.set_max_torque(TOGGLE_AUTO_TORQUE, PERCENT)
     toggle_motor.set_timeout(4000, MSEC)
     toggle_motor.reset_position()
     toggle_motor.spin_for(REVERSE, rotations, TURNS, TOGGLE_AUTO_SPEED, PERCENT, wait=False)
