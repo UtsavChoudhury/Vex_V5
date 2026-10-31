@@ -2,8 +2,8 @@
 
 VEX V5 competition robot. VEXcode Python, SDK `V5_1_0_1_25`, slot 2.
 
-Two-motor drive with an arm and a claw, plus an AI Vision sensor that recognises
-the yellow/blue cone.
+Two-motor drive with an arm, a claw and a toggle motor. The AI Vision camera code
+was removed; the sensor is not used.
 
 ## Build and download
 
@@ -24,7 +24,7 @@ every change.
 |------|--------|
 | 4 | right drive motor (green 18:1) |
 | 6 | left drive motor (green 18:1) |
-| 7 | AI Vision sensor |
+| 8 | toggle motor (L1 forward, L2 backward, full power) |
 | 9 | arm motor (red 36:1), lifts the arm by tracks |
 | 10 | claw motor (red 36:1) |
 | 3-wire C, E | back bumper switches, left and right |
@@ -43,8 +43,7 @@ the stick forward.
 | R1 | fast — full power, bypasses the turn taper |
 | R2 | slow — 25% power |
 | nothing held | 50% power |
-| Left arrow | cone assist: spin left until the cone is seen, then centre on it |
-| Right arrow | cone assist: spin right until the cone is seen, then centre on it |
+| L1 / L2 | toggle motor forward / backward at full power |
 | X | re-zero the arm: move it with the right stick, press A |
 
 ### Arm and claw zero, limits
@@ -63,11 +62,6 @@ a slack chain from a free arm, so nothing is guessed from them.
 The brain screen shows every motor's rotation, the arm's speed and current, the
 bumpers and the slip count (`MOTOR_DIAGNOSTIC`).
 
-While cone assist runs, **any** button or a stick pushed past
-`ASSIST_STICK_CANCEL` stops it and hands control straight back. The controller
-screen shows `searching`, `aligning`, `centred` (two short rumbles) or
-`cancelled`.
-
 Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 
 ## Selecting a mode
@@ -76,10 +70,6 @@ Throttle is deadbanded then squared, so small stick movements stay fine-grained.
 
 | Call | Purpose |
 |------|---------|
-| `cone_detector()` | watch through the AI Vision sensor, announce the cone |
-| `vision_report()` | diagnostic — what the sensor is seeing, on the brain screen |
-| `scan_ports()` | diagnostic — which port the AI Vision sensor is on |
-| `tag_report()` | diagnostic — AprilTags (id, x, width) and AI model objects the camera sees |
 | `user_control()` | normal driving |
 | `test_autonomous()` | runs `autonomous()` immediately on Run, then driver control |
 | `match()` | **competitions** — field control picks `autonomous()` or `user_control()` |
@@ -103,39 +93,12 @@ about one tile out and one tile along. See `start_positions.png`.
 Setup: back bumpers on the wall, centred on the wall, preload Pin gripped upright
 in the claw, arm zeroed.
 
+0. Spins the toggle motor backward `TOGGLE_AUTO_TURNS` (2) rotations, with the arm lifting at the same time.
 1. Seats both bumpers on the wall (`AUTO_SEAT_MS`; carries on either way).
 2. Arm to `AUTO_ARM_CARRY_DEG`, drives `AUTO_LEG1_MM` out from the wall.
 3. Turns 90° towards the goal (`AUTO_SIDE`, chosen with the arrow buttons).
-4. Steers to the goal by its AprilTag (`to_goal()`), then arm down to
+4. Drives `AUTO_LEG2_MM`, then forward until the front bumper hits, backs off, arm down to
    `AUTO_ARM_PLACE_DEG`, opens the claw, arm back up, backs off.
-
-### Goal AprilTags
-
-Every Override goal carries a circle21h7 AprilTag (manual Appendix A16, A7):
-alliance goals are tag **2** (the quadrant on the alliance-station side) and tag
-**3**, neutrals 1 and 4, centre 0. Red and blue use the same numbers, mirrored, so
-the arrow pressed picks the tag (`TAG_FOR_SIDE`): Right = 2, Left = 3.
-
-`approach_tag()` steers so the tag sits at `TAG_CENTER_X` and drives until it is
-`TAG_STOP_WIDTH` px wide, then `TAG_FINAL_MM` blind puts the claw over the goal.
-This absorbs turn and distance error. If the tag is never seen within
-`TAG_FIND_MS`, or is lost, it finishes the remaining `AUTO_LEG2_MM` by distance.
-
-Calibrate with `tag_report()`: put the claw over the goal by hand, back off until
-the tag is fully in view, read `x` into `TAG_CENTER_X` and `w` into
-`TAG_STOP_WIDTH`, and measure the back-off into `TAG_FINAL_MM`. If no `TAG` lines
-appear at all, the tag family is wrong: try the other `AiVision.TAG_*` values in
-`TAG_FAMILY`.
-
-| Start | Goal is | Press |
-|---|---|---|
-| red, red Alliance Station wall | right | Right arrow |
-| red, other red wall | left | Left arrow |
-| blue, blue Alliance Station wall | right | Right arrow |
-| blue, other blue wall | left | Left arrow |
-
-The Pin's colour half scores 5 points and is usually enough to take the
-12-point Autonomous Bonus.
 
 ### Slots
 
@@ -235,73 +198,3 @@ Run 1 spin, note the miss, then run 3.
 
 An inertial sensor closing the loop on measured heading makes all of this
 unnecessary — turns stop caring about track width and scrub entirely.
-
-## AI Vision
-
-The cone is a colour code: two colours that only match when found adjacent to
-each other, which is exactly the half-yellow half-blue cone. The code drops out
-at range, so `find_cone()` falls back to a yellow blob with a blue blob right
-beside it (`find_color_pair()`), merged into one box (`ConeBox`) so width and
-centre cover the whole cone, not just the yellow half. A plain yellow object alone still cannot
-trigger it. Blobs under `VISION_MIN_WIDTH` x `VISION_MIN_HEIGHT` px are ignored;
-a cone across the field is only about 15 px wide.
-
-| Kind | Index | Name |
-|------|-------|------|
-| colour | 1 | `bluecone` |
-| colour | 2 | `yellowcone` |
-| colour code | 1 | `cone` |
-
-These are **declared in `src/config.py`**, not read from the sensor. Relying on
-what the AI Vision Utility stored does not work — see AGENTS.md.
-
-If the code matches things that are not the cone, narrow the hue range (40) and
-saturation range (1.00) in the `Colordesc` lines. To re-sample the colours
-properly: connect the brain over USB, open the AI Vision Utility, press
-**Connect**, point the sensor at the real cone and use **Set Color** on each
-half, then copy the values back into `config.py`.
-
-`cone_detector()` prints `cone identified` once on arrival, not once per frame,
-and `cone lost` on the way out. Three consecutive agreeing frames are required
-in each direction (150 ms), which rides out a dropped frame without lag.
-
-### Cone assist
-
-`cone_assist()` in `drivercontrol.py` spins at `ASSIST_SEARCH_SPEED` until the
-cone is seen `VISION_CONFIRM_FRAMES` frames in a row, then turns towards it with
-power proportional to the pixel error (`ASSIST_STEER_KP`, clamped between
-`ASSIST_MIN_TURN` and `ASSIST_MAX_TURN`). It stops once `centerX` is within
-`ASSIST_TOLERANCE_PX` for `ASSIST_HOLD_FRAMES` frames. If the cone drops out for
-`ASSIST_LOST_FRAMES` it searches again, turning the way the cone was last seen.
-
-If it oscillates either side of the cone, lower `ASSIST_STEER_KP` or
-`ASSIST_MAX_TURN`. If it stalls just short of centre, raise `ASSIST_MIN_TURN`.
-
-If it reports centred but the robot is visibly angled, the camera is not on the
-robot's centreline. Aim the robot at the cone by hand, read `x` from
-`vision_report()`, and put that number in `VISION_CENTER_X`.
-
-### Nothing happens at all
-
-1. **Did you run `python3 build.py`?** The brain runs `src/download.py`. Editing
-   a module and hitting Download sends the previous build.
-2. **`print()` does not appear on the brain** — it goes to the VEXcode console
-   over USB. `vision_report()` reports on the brain screen instead, so use that
-   when you are not tethered.
-3. **Blank brain screen** means the program is not running: wrong slot, a failed
-   download, or it stopped on an error.
-
-### If detection never fires
-
-Run `vision_report()` and watch the console with the cone in front of the sensor.
-
-- **A `CODE` line appears** — read the id off it into `CONE_CODE_ID`.
-- **Only `COLOR` lines, never `CODE`** — the sensor sees both halves but will not
-  merge them. Either they are too far apart at your test distance, or one colour
-  range is too tight. Fix it in the utility.
-- **Nothing at all** — wrong port, or the lighting is far from where the colours
-  were tuned.
-
-`VISION_MIN_WIDTH` / `VISION_MIN_HEIGHT` discard matches under 20×20 px in the
-320×240 frame. Raise them to shorten detection range.
-# Vex_V5

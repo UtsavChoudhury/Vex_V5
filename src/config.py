@@ -94,6 +94,7 @@ claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
+TOGGLE_AUTO_TURNS = 2      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 
 # --- Driver tuning ---
@@ -167,68 +168,6 @@ ARM_TORQUE = 90           # percent of max
 
 # Zeroing: move the arm by hand with the stick, press A.
 ARM_ZERO_SPEED = 0.25     # fraction of power for the stick while confirming
-
-
-# --- AI Vision ---
-
-AI_VISION_PORT = Ports.PORT7
-
-BLUE_CONE_ID = 1                 # colour "bluecone", first in the utility list
-YELLOW_CONE_ID = 2               # colour "yellowcone"
-CONE_CODE_ID = 1                 # colour code "cone"
-VISION_CENTER_X = 164            # centerX when the cone is dead ahead; shift if camera is off-centre
-
-# Driver cone assist: spin until the cone is seen, then centre on it.
-ASSIST_SEARCH_SPEED = 15         # percent while looking; slow so frames aren't blurred
-ASSIST_STEER_KP = 0.12           # turn power per pixel of error
-ASSIST_MIN_TURN = 4              # smallest turn power that actually moves the robot
-ASSIST_MAX_TURN = 15
-ASSIST_TOLERANCE_PX = 4
-ASSIST_HOLD_FRAMES = 3           # centred this many frames in a row = done
-ASSIST_LOST_FRAMES = 5           # misses in a row before searching again
-ASSIST_STICK_CANCEL = 20         # stick past this cancels, as any button does
-
-# RGB sampled from the utility swatches; hue and saturation ranges as set there.
-# Declared here rather than relied on from the sensor -- see AGENTS.md.
-BLUE_CONE = Colordesc(BLUE_CONE_ID, 74, 126, 169, 40.0, 1.00)
-YELLOW_CONE = Colordesc(YELLOW_CONE_ID, 194, 194, 123, 40.0, 1.00)
-CONE = Codedesc(CONE_CODE_ID, BLUE_CONE, YELLOW_CONE)
-
-ai_vision = AiVision(AI_VISION_PORT, BLUE_CONE, YELLOW_CONE, CONE)
-# Colour and code processing is off until asked for; without this every
-# snapshot comes back empty even though the sensor is streaming.
-ai_vision.color_detection(True)
-
-# Every Override goal carries an AprilTag (manual Appendix A16). Alliance goals
-# are tag 2 (alliance-station side quadrant) and tag 3; neutrals 1 and 4; centre 0.
-TAG_FAMILY = AiVision.TAG_CIRCLE21H7   # notched-square tags on the goals; check with tag_report()
-try:
-    ai_vision.set_tag_family(TAG_FAMILY)
-    ai_vision.tag_detection(True)
-except:
-    pass
-
-TAG_FOR_SIDE = {1: 2, -1: 3}     # arrow pressed -> goal tag; see README.md
-TAG_CENTER_X = 160               # tag centerX when the claw lines up with the goal
-TAG_STOP_WIDTH = 40              # tag width (px) where vision hands over to the final drive
-TAG_FINAL_MM = 80                # drive from there until the claw is over the goal
-TAG_STEER_KP = 0.10              # turn power per pixel
-TAG_MAX_TURN = 12
-TAG_MIN_SPEED = 8                # percent forward while closing in
-TAG_MAX_SPEED = 25
-TAG_SPEED_KP = 0.8               # forward power per pixel of width still to close
-TAG_TOLERANCE_PX = 6
-TAG_FIND_MS = 1200               # never seen by then = fall back to distances
-TAG_LOST_FRAMES = 6              # misses in a row after seeing it = fall back
-TAG_MAX_MS = 5000
-
-VISION_MIN_WIDTH = 6             # a cone across the field is only ~15 px wide
-VISION_MIN_HEIGHT = 6
-
-VISION_CONFIRM_FRAMES = 3
-
-VISION_LOOP_MS = 50
-VISION_MAX_OBJECTS = 8
 
 
 # --- Shared setup ---

@@ -2,7 +2,6 @@
 
 from vex import *
 from config import *
-from vision import approach_tag
 
 
 # --- Movement ---
@@ -268,38 +267,31 @@ def set_auto_side(side):
     global AUTO_SIDE
     AUTO_SIDE = side
 
-def to_goal(fallback_mm):
-    """Steer to our goal's AprilTag; if the camera can't, finish the distance blind."""
-    tag_id = TAG_FOR_SIDE.get(AUTO_SIDE, 2)
-    bumper_status("seeking tag %d" % tag_id)
-    log("seeking tag %d" % tag_id)
-    reached, driven_deg = approach_tag(tag_id)
-    left_motor.set_stopping(HOLD)
-    right_motor.set_stopping(HOLD)
-    if reached:
-        bumper_status("TAG LOCKED: %d" % tag_id)
-        log("TAG LOCKED: %d -- approaching final position" % tag_id)
-        drive(TAG_FINAL_MM, AUTO_GOAL_SPEED)
-        log("final drive complete")
-        return True
-    bumper_status("TAG LOST: using fallback")
-    log("TAG NOT FOUND -- using fallback distance (%.0f mm remaining)" % fallback_mm)
-    remaining = fallback_mm - driven_deg / wheel_degrees_for_distance(1.0)
-    if remaining > 0:
-        log("driving fallback distance: %.0f mm" % remaining)
-        drive(remaining, AUTO_GOAL_SPEED)
-    return False
+def toggle_start(rotations=TOGGLE_AUTO_TURNS):
+    """Spin the toggle motor backward (L2 direction) a set number of rotations, without waiting."""
+    toggle_motor.set_stopping(BRAKE)
+    toggle_motor.set_max_torque(100, PERCENT)
+    toggle_motor.set_timeout(4000, MSEC)
+    toggle_motor.spin_for(REVERSE, rotations, TURNS, 100, PERCENT, wait=False)
+
+def toggle_wait():
+    """Block until the toggle motor has finished (or timed out)."""
+    while toggle_motor.is_spinning():
+        wait(10, MSEC)
 
 def autonomous():
-    """Override: mid-wall start, out a tile, turn, steer to the alliance goal's tag, place the preload."""
+    """Override: mid-wall start, flip the toggle, out a tile, turn, drive in, place the preload."""
     log("AUTO start, side %d" % AUTO_SIDE)
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
     square_to_wall(0)
     log("squared to wall")
-    # Lift during the first leg; it is the slowest part of the routine.
+    # Flip the toggle (and lift the arm meanwhile) before going forward.
+    toggle_start()
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
+    toggle_wait()
+    log("toggle done")
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
     arm_wait()
@@ -308,8 +300,7 @@ def autonomous():
     turn(88.5 * AUTO_SIDE)
     log("turned")
     settle()
-    tag_result = to_goal(AUTO_LEG2_MM)
-    log("=== TAG APPROACH RESULT: %s ===" % ("SUCCESS" if tag_result else "FALLBACK"))
+    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
     settle()
     drive_until_collision()
     log("arm at place, %d" % arm_motor.position(DEGREES))

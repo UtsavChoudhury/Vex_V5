@@ -10,7 +10,7 @@ SRC = os.path.join(HERE, "src")
 OUT = os.path.join(SRC, "download.py")
 
 # Dependency order: a module must come after the ones it reads from.
-MODULES = ["config", "vision", "autonomousroutine", "drivercontrol", "main"]
+MODULES = ["config", "autonomousroutine", "drivercontrol", "main"]
 
 # Extra builds for vexcom slots: (file, call replacing the final main()).
 VARIANTS = [("download_driver.py", "driver()"), ("download_auto.py", "auto_on_button()")]

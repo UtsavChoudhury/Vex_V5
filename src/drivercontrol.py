@@ -1,8 +1,7 @@
-# drivercontrol.py -- arcade drive, slew limiting, manipulator, cone assist.
+# drivercontrol.py -- arcade drive, slew limiting, manipulator, toggle motor.
 
 from vex import *
 from config import *
-from vision import find_cone
 
 
 # --- Driver helpers ---
@@ -61,18 +60,9 @@ def show_motor_diagnostic():
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
         screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
-        screen_line(8, "camera: " + tags_text())
     except:
         # Never let a diagnostic take the drive down mid-match.
         screen_line(5, "diagnostic error")
-
-def tags_text():
-    """AprilTags in view, nearest first: 'T2 x162 w38'."""
-    tags = sorted(ai_vision.take_snapshot(AiVision.ALL_TAGS, VISION_MAX_OBJECTS),
-                  key=lambda t: -t.width)
-    if len(tags) == 0:
-        return "no tags"
-    return "  ".join("T%d x%d w%d" % (t.id, t.centerX, t.width) for t in tags[:3])
 
 def show_controller_line(row):
     """One of three short lines on the controller; one per call, as its screen is slow."""
@@ -83,104 +73,12 @@ def show_controller_line(row):
         elif row == 2:
             text = "L%d R%d" % (left_motor.position(DEGREES), right_motor.position(DEGREES))
         else:
-            tags = tags_text()
-            text = tags if tags != "no tags" else "CLAW %d" % claw_motor.position(DEGREES)
+            text = "CLAW %d" % claw_motor.position(DEGREES)
         controller.screen.clear_line(row)
         controller.screen.set_cursor(row, 1)
         controller.screen.print(text[:19])
     except:
         pass
-
-
-# --- Cone assist ---
-
-BUTTON_NAMES = ["buttonL1", "buttonL2", "buttonR1", "buttonR2", "buttonUp", "buttonDown",
-                "buttonLeft", "buttonRight", "buttonA", "buttonB", "buttonX", "buttonY"]
-
-def sticks_moved():
-    return (abs(controller.axis1.position()) > ASSIST_STICK_CANCEL or
-            abs(controller.axis2.position()) > ASSIST_STICK_CANCEL or
-            abs(controller.axis3.position()) > ASSIST_STICK_CANCEL or
-            abs(controller.axis4.position()) > ASSIST_STICK_CANCEL)
-
-def spin_in_place(power):
-    """Positive = right."""
-    left_motor.spin(FORWARD, power, PERCENT)
-    right_motor.spin(FORWARD, -power, PERCENT)
-
-def assist_steer(error):
-    """Proportional turn power for a centerX error, with a floor to beat friction."""
-    power = ASSIST_STEER_KP * error
-    if abs(power) < ASSIST_MIN_TURN:
-        power = ASSIST_MIN_TURN if error > 0 else -ASSIST_MIN_TURN
-    return max(-ASSIST_MAX_TURN, min(ASSIST_MAX_TURN, power))
-
-def assist_report(text):
-    controller.screen.clear_screen()
-    controller.screen.set_cursor(1, 1)
-    controller.screen.print(text)
-
-def cone_assist(direction, start_name):
-    """Spin `direction` (1 right, -1 left) until the cone is seen, then centre; any input cancels."""
-    arm_motor.stop()
-    claw_motor.stop()
-    assist_report("cone: searching")
-    released = False
-    hits = 0
-    misses = 0
-    centred = 0
-    found = False
-    while True:
-        if not getattr(controller, start_name).pressing():
-            released = True
-        for name in BUTTON_NAMES:
-            if getattr(controller, name).pressing() and (name != start_name or released):
-                left_motor.stop()
-                right_motor.stop()
-                assist_report("cone: cancelled")
-                return False
-        if sticks_moved():
-            left_motor.stop()
-            right_motor.stop()
-            assist_report("cone: cancelled")
-            return False
-
-        cone = find_cone()
-        if cone is None:
-            hits = 0
-            centred = 0
-            misses = misses + 1
-            if found and misses >= ASSIST_LOST_FRAMES:
-                found = False
-                assist_report("cone: searching")
-        else:
-            misses = 0
-            hits = hits + 1
-            if not found and hits >= VISION_CONFIRM_FRAMES:
-                found = True
-                assist_report("cone: aligning")
-
-        if found and cone is not None:
-            error = cone.centerX - VISION_CENTER_X
-            direction = 1 if error > 0 else -1
-            if abs(error) <= ASSIST_TOLERANCE_PX:
-                centred = centred + 1
-                left_motor.stop()
-                right_motor.stop()
-                if centred >= ASSIST_HOLD_FRAMES:
-                    assist_report("cone: centred")
-                    controller.rumble("..")
-                    return True
-            else:
-                centred = 0
-                spin_in_place(assist_steer(error))
-        elif found:
-            left_motor.stop()
-            right_motor.stop()
-        else:
-            spin_in_place(direction * ASSIST_SEARCH_SPEED)
-
-        wait(VISION_LOOP_MS, MSEC)
 
 
 # --- Driver loop ---
@@ -203,8 +101,6 @@ def user_control():
     turn_sign = 1.0
     arm_power = 0.0
     diag_tick = 0
-    was_left = False
-    was_right = False
     ctrl_row = 0
     controller.screen.clear_screen()
 
@@ -215,22 +111,6 @@ def user_control():
             confirm_arm_zero()
             brain.screen.clear_screen()
             arm_power = 0.0
-
-        # Edge-triggered so a button held through cancelling doesn't restart it.
-        left_now = controller.buttonLeft.pressing()
-        right_now = controller.buttonRight.pressing()
-        if (left_now and not was_left) or (right_now and not was_right):
-            if left_now and not was_left:
-                cone_assist(-1, "buttonLeft")
-            else:
-                cone_assist(1, "buttonRight")
-            forward_power = 0.0
-            turn_power = 0.0
-            arm_power = 0.0
-            left_now = controller.buttonLeft.pressing()
-            right_now = controller.buttonRight.pressing()
-        was_left = left_now
-        was_right = right_now
 
         forward_raw = controller.axis3.position()
         turn_raw = controller.axis4.position()
