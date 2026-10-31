@@ -86,7 +86,7 @@ def match():
 def main():
     # turn_tuner()
     # match()
-    driver()
-    # auto_on_button()
+    # driver()
+    auto_on_button()
 
 main()

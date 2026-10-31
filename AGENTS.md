@@ -9,8 +9,7 @@ picture.
 A VEX V5 competition robot program. VEXcode VS Code extension, Python, SDK
 `V5_1_0_1_25`, downloads to slot 2.
 
-`README.md` covers operation: ports, controls, calibration procedure, AI Vision
-setup. This file covers how the code is put together and what will bite you.
+`README.md` covers operation: ports, controls, calibration procedure. This file covers how the code is put together and what will bite you.
 
 ## Conventions
 
@@ -46,7 +45,7 @@ downloadable at a competition). Never edit it; its diffs are noise.
 |------|----------|
 | `src/config.py` | every device object and every tunable constant; `manipulator_init()` |
 | `src/autonomousroutine.py` | wheel-degree maths, `drive`, `turn`, calibration, `turn_tuner`, `square_to_wall`, `autonomous()` |
-| `src/drivercontrol.py` | `slew`, `turn_taper`, `fit_turn`, `cone_assist`, `user_control()` |
+| `src/drivercontrol.py` | `slew`, `turn_taper`, `fit_turn`, `user_control()` |
 | `src/main.py` | imports the above; `main()` selects the mode |
 | `build.py` | flattens `src/` into `src/download.py` |
 
@@ -97,12 +96,8 @@ roughly half distance.
 - **`TURN_SCALE` is rebound by `turn_tuner()`** via `global`. That works because
   the tuner and `wheel_degrees_for_turn` are in the same module, and stays true
   after flattening. Moving either one breaks it.
-- **Type checker and `AiVisionObject | None`.** Narrow with `is not None` before
-  attribute reads even where it is redundant at runtime.
-- **`ai_vision.color_detection(True)` is required.** Colour and code processing
-  is off by default. The sensor still reports `installed()` True and a moving
-  `timestamp()`, so the failure looks like "sees nothing" rather than
-  "misconfigured". `config.py` enables it right after constructing the sensor.
+
+
 - **The brain screen is static pixels.** `brain.screen.print()` paints once and
   has no link to the variable it formatted; redraw to update. It also does not
   blank the rest of the row, so a shorter string leaves the tail of the old one
