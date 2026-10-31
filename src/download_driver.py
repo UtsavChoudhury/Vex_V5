@@ -45,7 +45,8 @@ AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
 AUTO_LEG_MM = 1000        # S->A and A->B
 AUTO_TURN_DEG = 90        # positive = right
-AUTO_GOAL_TURN_DEG = 89.5  # the turn towards the goal in autonomous (was 90.5; -1 deg)
+AUTO_GOAL_TURN_RIGHT_DEG = 89.5  # autonomous turn when the goal is on the right
+AUTO_GOAL_TURN_LEFT_DEG = 91.5   # autonomous turn when the goal is on the left (+2 deg: the left side under-turned)
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
 WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
@@ -60,7 +61,7 @@ ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ de
 # when autonomous starts; read them off the brain screen in user_control().
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
 # Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
-AUTO_LEG1_MM = 390        # goal-out distance minus wall -> robot turning centre (was 400; -1 cm)
+AUTO_LEG1_MM = 380        # goal-out distance minus wall -> robot turning centre (was 400; -1 cm)
 AUTO_LEG2_MM = 390        # after the turn; +20 mm so the claw is over the goal
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
@@ -594,7 +595,10 @@ def autonomous():
     arm_wait()
     log("arm at carry, %d" % arm_motor.position(DEGREES))
     settle()
-    turn(AUTO_GOAL_TURN_DEG * AUTO_SIDE)
+    if AUTO_SIDE > 0:
+        turn(AUTO_GOAL_TURN_RIGHT_DEG)
+    else:
+        turn(-AUTO_GOAL_TURN_LEFT_DEG)
     log("turned")
     settle()
     drive_until_collision()
