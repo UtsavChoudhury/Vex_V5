@@ -181,8 +181,8 @@ def bumper_status(text):
     controller.screen.set_cursor(1, 1)
     controller.screen.print(line)
 
-def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
-    """Back up until both bumpers are pressed, then keep pushing for WALL_SQUARE_PUSH_MS."""
+def square_to_wall(max_ms=WALL_SQUARE_MAX_MS, push_ms=WALL_SQUARE_PUSH_MS):
+    """Back up until both bumpers are pressed, then keep pushing for push_ms."""
     free_drive_timeouts()
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
@@ -199,7 +199,7 @@ def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
         wait(10, MSEC)
     bumper_status("pushing wall")
     push_start = brain.timer.time(MSEC)
-    while brain.timer.time(MSEC) - push_start < WALL_SQUARE_PUSH_MS:
+    while brain.timer.time(MSEC) - push_start < push_ms:
         left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
         right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
         wait(10, MSEC)
@@ -317,7 +317,7 @@ def autonomous():
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     toggle_wait()
     # Then back all the way again until both back bumpers are in, whatever the toggle did.
-    log("re-squared after toggle: %s" % square_to_wall())
+    log("re-squared after toggle: %s" % square_to_wall(push_ms=WALL_SQUARE_PUSH_MS + TOGGLE_RESQUARE_EXTRA_MS))
     log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))

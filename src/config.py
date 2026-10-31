@@ -43,6 +43,7 @@ AUTO_GOAL_TURN_DEG = 89.5  # the turn towards the goal in autonomous (was 90.5; 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
 WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
 WALL_SQUARE_MAX_MS = 2000 # no wall by then = stop backing up and carry on
+TOGGLE_RESQUARE_EXTRA_MS = 500  # the back-up after the toggle pushes this much longer than the first one
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
 AUTO_ARM_SPEED = 100
@@ -52,7 +53,7 @@ ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ de
 # when autonomous starts; read them off the brain screen in user_control().
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
 # Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
-AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
+AUTO_LEG1_MM = 390        # goal-out distance minus wall -> robot turning centre (was 400; -1 cm)
 AUTO_LEG2_MM = 390        # after the turn; +20 mm so the claw is over the goal
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim

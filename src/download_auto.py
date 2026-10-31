@@ -50,6 +50,7 @@ AUTO_GOAL_TURN_DEG = 89.5  # the turn towards the goal in autonomous (was 90.5; 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
 WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
 WALL_SQUARE_MAX_MS = 2000 # no wall by then = stop backing up and carry on
+TOGGLE_RESQUARE_EXTRA_MS = 500  # the back-up after the toggle pushes this much longer than the first one
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
 AUTO_ARM_SPEED = 100
@@ -59,7 +60,7 @@ ARM_MAX_DPS = 600.0       # red cartridge, 100 rpm; full arm travel is ~2000+ de
 # when autonomous starts; read them off the brain screen in user_control().
 AUTO_SEAT_MS = 800        # max time to seat both bumpers on the start wall
 # Start mid-wall; the goal is ~1 tile out and ~1 tile along. See README.md.
-AUTO_LEG1_MM = 400        # goal-out distance minus wall -> robot turning centre
+AUTO_LEG1_MM = 390        # goal-out distance minus wall -> robot turning centre (was 400; -1 cm)
 AUTO_LEG2_MM = 390        # after the turn; +20 mm so the claw is over the goal
 AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
@@ -450,8 +451,8 @@ def bumper_status(text):
     controller.screen.set_cursor(1, 1)
     controller.screen.print(line)
 
-def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
-    """Back up until both bumpers are pressed, then keep pushing for WALL_SQUARE_PUSH_MS."""
+def square_to_wall(max_ms=WALL_SQUARE_MAX_MS, push_ms=WALL_SQUARE_PUSH_MS):
+    """Back up until both bumpers are pressed, then keep pushing for push_ms."""
     free_drive_timeouts()
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
@@ -468,7 +469,7 @@ def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
         wait(10, MSEC)
     bumper_status("pushing wall")
     push_start = brain.timer.time(MSEC)
-    while brain.timer.time(MSEC) - push_start < WALL_SQUARE_PUSH_MS:
+    while brain.timer.time(MSEC) - push_start < push_ms:
         left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
         right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
         wait(10, MSEC)
@@ -586,7 +587,7 @@ def autonomous():
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     toggle_wait()
     # Then back all the way again until both back bumpers are in, whatever the toggle did.
-    log("re-squared after toggle: %s" % square_to_wall())
+    log("re-squared after toggle: %s" % square_to_wall(push_ms=WALL_SQUARE_PUSH_MS + TOGGLE_RESQUARE_EXTRA_MS))
     log("toggle now at %.2f rev (did it settle, drift or get pulled back?)" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
