@@ -47,7 +47,7 @@ AUTO_LEG_MM = 1000        # S->A and A->B
 AUTO_TURN_DEG = 90        # positive = right
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
-WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides seat
+WALL_SQUARE_PUSH_MS = 1500 # keep pushing once both bumpers are in, so both sides seat (1.5 sec)
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
@@ -64,8 +64,11 @@ AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
 AUTO_ARM_PLACE_DEG = 300  # first guess for "20 cm lower"; set from the ARM number once measured
 AUTO_CLAW_OPEN_PCT = 50   # sign = the claw direction that opens
-AUTO_CLAW_OPEN_MS = 400
+AUTO_CLAW_OPEN_MS = 800
 AUTO_BACKOFF_MM = 150
+
+# Front collision handling
+COLLISION_BACKOFF_MM = 75  # 7.5cm back when front bumper hits
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -76,10 +79,11 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
 
 
-# Bumper switches: back left C, back right E, left side F.
+# Bumper switches: back left C, back right E, left side F, front H.
 bumper_left = Bumper(brain.three_wire_port.c)
 bumper_right = Bumper(brain.three_wire_port.e)
 bumper_side = Bumper(brain.three_wire_port.f)
+bumper_front = Bumper(brain.three_wire_port.h)
 
 
 # --- Manipulator hardware ---
@@ -200,12 +204,11 @@ ai_vision.color_detection(True)
 # Every Override goal carries an AprilTag (manual Appendix A16). Alliance goals
 # are tag 2 (alliance-station side quadrant) and tag 3; neutrals 1 and 4; centre 0.
 TAG_FAMILY = AiVision.TAG_CIRCLE21H7   # notched-square tags on the goals; check with tag_report()
-# Camera off for now: tag detection not enabled.
-# try:
-#     ai_vision.set_tag_family(TAG_FAMILY)
-#     ai_vision.tag_detection(True)
-# except:
-#     pass
+try:
+    ai_vision.set_tag_family(TAG_FAMILY)
+    ai_vision.tag_detection(True)
+except:
+    pass
 
 TAG_FOR_SIDE = {1: 2, -1: 3}     # arrow pressed -> goal tag; see README.md
 TAG_CENTER_X = 160               # tag centerX when the claw lines up with the goal
@@ -755,7 +758,7 @@ def bumper_status(text):
     controller.screen.print(line)
 
 def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
-    """Back up until both bumpers are pressed. False if the wall never arrives."""
+    """Back up until both bumpers are pressed, then keep pushing for WALL_SQUARE_PUSH_MS."""
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     bumper_status("wall")
@@ -763,13 +766,18 @@ def square_to_wall(max_ms=WALL_SQUARE_MAX_MS):
     right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
     start = brain.timer.time(MSEC)
     while not (bumper_left.pressing() and bumper_right.pressing()):
-        if brain.timer.time(MSEC) - start > max_ms:
+        if max_ms > 0 and brain.timer.time(MSEC) - start > max_ms:
             left_motor.stop()
             right_motor.stop()
             bumper_status("NO WALL")
             return False
         wait(10, MSEC)
-    wait(WALL_SQUARE_PUSH_MS, MSEC)
+    bumper_status("pushing wall")
+    push_start = brain.timer.time(MSEC)
+    while brain.timer.time(MSEC) - push_start < WALL_SQUARE_PUSH_MS:
+        left_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
+        right_motor.spin(REVERSE, WALL_SQUARE_SPEED, PERCENT)
+        wait(10, MSEC)
     left_motor.stop()
     right_motor.stop()
     bumper_status("square")
@@ -800,10 +808,39 @@ def arm_wait():
         wait(10, MSEC)
 
 def open_claw():
-    """Open the claw back to its 0 (fully open); bounded in time so a stall can't hang autonomous."""
+    """Drive the claw open for AUTO_CLAW_OPEN_MS, whatever its encoder says."""
     claw_motor.set_stopping(HOLD)
-    claw_motor.set_timeout(AUTO_CLAW_OPEN_MS * 3, MSEC)
-    claw_motor.spin_to_position(0, DEGREES, abs(AUTO_CLAW_OPEN_PCT), PERCENT, True)
+    claw_motor.spin(FORWARD, AUTO_CLAW_OPEN_PCT, PERCENT)
+    wait(AUTO_CLAW_OPEN_MS, MSEC)
+    claw_motor.stop()
+
+def drive_until_collision(speed=AUTO_GOAL_SPEED):
+    """Drive forward until front bumper is pressed."""
+    left_motor.set_stopping(HOLD)
+    right_motor.set_stopping(HOLD)
+    left_motor.set_timeout(600000, MSEC)
+    right_motor.set_timeout(600000, MSEC)
+
+    bumper_status("moving until hit")
+    log("driving forward until front bumper is hit...")
+
+    left_motor.spin(FORWARD, speed, PERCENT)
+    right_motor.spin(FORWARD, speed, PERCENT)
+
+    while True:
+        if bumper_front.pressing():
+            log("FRONT COLLISION DETECTED")
+            left_motor.stop()
+            right_motor.stop()
+            bumper_status("HIT - backing up")
+            settle(100)
+            drive(-COLLISION_BACKOFF_MM, AUTO_GOAL_SPEED)
+            settle()
+            bumper_status("lowering claw")
+            arm_to(AUTO_ARM_PLACE_DEG)
+            log("claw lowered after collision")
+            break
+        wait(10, MSEC)
 
 AUTO_SIDE = 1               # +1 goal on the right, -1 on the left
 
@@ -815,17 +852,22 @@ def set_auto_side(side):
 def to_goal(fallback_mm):
     """Steer to our goal's AprilTag; if the camera can't, finish the distance blind."""
     tag_id = TAG_FOR_SIDE.get(AUTO_SIDE, 2)
-    bumper_status("tag %d" % tag_id)
+    bumper_status("seeking tag %d" % tag_id)
+    log("seeking tag %d" % tag_id)
     reached, driven_deg = approach_tag(tag_id)
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     if reached:
-        bumper_status("tag %d locked" % tag_id)
+        bumper_status("TAG LOCKED: %d" % tag_id)
+        log("TAG LOCKED: %d -- approaching final position" % tag_id)
         drive(TAG_FINAL_MM, AUTO_GOAL_SPEED)
+        log("final drive complete")
         return True
-    bumper_status("no tag, blind")
+    bumper_status("TAG LOST: using fallback")
+    log("TAG NOT FOUND -- using fallback distance (%.0f mm remaining)" % fallback_mm)
     remaining = fallback_mm - driven_deg / wheel_degrees_for_distance(1.0)
     if remaining > 0:
+        log("driving fallback distance: %.0f mm" % remaining)
         drive(remaining, AUTO_GOAL_SPEED)
     return False
 
@@ -835,7 +877,8 @@ def autonomous():
     manipulator_init()
     claw_motor.stop()
     # Already on the wall by the start rule; this only seats it square.
-    log("square to wall: %s" % square_to_wall(AUTO_SEAT_MS))
+    square_to_wall(0)
+    log("squared to wall")
     # Lift during the first leg; it is the slowest part of the routine.
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
@@ -843,14 +886,13 @@ def autonomous():
     arm_wait()
     log("arm at carry, %d" % arm_motor.position(DEGREES))
     settle()
-    turn(90 * AUTO_SIDE)
+    turn(88.5 * AUTO_SIDE)
     log("turned")
     settle()
-    # Camera off for now: tag approach commented out, drive the distance instead.
-    # log("tag approach: %s" % to_goal(AUTO_LEG2_MM))
-    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
+    tag_result = to_goal(AUTO_LEG2_MM)
+    log("=== TAG APPROACH RESULT: %s ===" % ("SUCCESS" if tag_result else "FALLBACK"))
     settle()
-    arm_to(AUTO_ARM_PLACE_DEG)
+    drive_until_collision()
     log("arm at place, %d" % arm_motor.position(DEGREES))
     open_claw()
     log("claw open, %d" % claw_motor.position(DEGREES))
@@ -936,7 +978,7 @@ def show_motor_diagnostic():
         screen_line(6, "CLAW %5d deg  %.2f A" % (claw_motor.position(DEGREES), claw_motor.current()))
         screen_line(7, "bump C%d E%d F%d   (X = re-zero arm)" % (
             bumper_left.pressing(), bumper_right.pressing(), bumper_side.pressing()))
-        # screen_line(8, "camera: " + tags_text())    # camera off for now
+        screen_line(8, "camera: " + tags_text())
     except:
         # Never let a diagnostic take the drive down mid-match.
         screen_line(5, "diagnostic error")
@@ -958,8 +1000,8 @@ def show_controller_line(row):
         elif row == 2:
             text = "L%d R%d" % (left_motor.position(DEGREES), right_motor.position(DEGREES))
         else:
-            # tags = tags_text()    # camera off for now
-            text = "CLAW %d" % claw_motor.position(DEGREES)
+            tags = tags_text()
+            text = tags if tags != "no tags" else "CLAW %d" % claw_motor.position(DEGREES)
         controller.screen.clear_line(row)
         controller.screen.set_cursor(row, 1)
         controller.screen.print(text[:19])

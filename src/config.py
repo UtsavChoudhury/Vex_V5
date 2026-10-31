@@ -40,7 +40,7 @@ AUTO_LEG_MM = 1000        # S->A and A->B
 AUTO_TURN_DEG = 90        # positive = right
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
-WALL_SQUARE_PUSH_MS = 200 # keep pushing once both bumpers are in, so both sides seat
+WALL_SQUARE_PUSH_MS = 1500 # keep pushing once both bumpers are in, so both sides seat (1.5 sec)
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
@@ -57,8 +57,11 @@ AUTO_GOAL_SPEED = 30      # percent, slow so the pin doesn't swing
 AUTO_ARM_CARRY_DEG = 900  # pin bottom clears the goal rim
 AUTO_ARM_PLACE_DEG = 300  # first guess for "20 cm lower"; set from the ARM number once measured
 AUTO_CLAW_OPEN_PCT = 50   # sign = the claw direction that opens
-AUTO_CLAW_OPEN_MS = 400
+AUTO_CLAW_OPEN_MS = 800
 AUTO_BACKOFF_MM = 150
+
+# Front collision handling
+COLLISION_BACKOFF_MM = 75  # 7.5cm back when front bumper hits
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -69,10 +72,11 @@ dt = DriveTrain(left_motor, right_motor, WHEEL_TRAVEL_MM, TRACK_WIDTH_MM,
                 WHEEL_BASE_MM, MM, EXTERNAL_GEAR_RATIO)
 
 
-# Bumper switches: back left C, back right E, left side F.
+# Bumper switches: back left C, back right E, left side F, front H.
 bumper_left = Bumper(brain.three_wire_port.c)
 bumper_right = Bumper(brain.three_wire_port.e)
 bumper_side = Bumper(brain.three_wire_port.f)
+bumper_front = Bumper(brain.three_wire_port.h)
 
 
 # --- Manipulator hardware ---
@@ -193,12 +197,11 @@ ai_vision.color_detection(True)
 # Every Override goal carries an AprilTag (manual Appendix A16). Alliance goals
 # are tag 2 (alliance-station side quadrant) and tag 3; neutrals 1 and 4; centre 0.
 TAG_FAMILY = AiVision.TAG_CIRCLE21H7   # notched-square tags on the goals; check with tag_report()
-# Camera off for now: tag detection not enabled.
-# try:
-#     ai_vision.set_tag_family(TAG_FAMILY)
-#     ai_vision.tag_detection(True)
-# except:
-#     pass
+try:
+    ai_vision.set_tag_family(TAG_FAMILY)
+    ai_vision.tag_detection(True)
+except:
+    pass
 
 TAG_FOR_SIDE = {1: 2, -1: 3}     # arrow pressed -> goal tag; see README.md
 TAG_CENTER_X = 160               # tag centerX when the claw lines up with the goal
