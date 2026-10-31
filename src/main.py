@@ -88,12 +88,27 @@ def match():
     show_both(1, "side: " + auto_side_text(), "now plug in the field")
     competition = Competition(user_control, autonomous)
 
+def skills_idle():
+    """Driver Skills has no autonomous."""
+    pass
+
+def skills():
+    """Driving skills: no prompts, so it runs whenever the controller's Driver Skills or the field starts it.
+    Start with the arm fully down and the claw fully open; those positions are taken as 0."""
+    global competition
+    arm_motor.reset_position()
+    arm_state["homed"] = True
+    claw_motor.reset_position()
+    claw_state["zeroed"] = True
+    competition = Competition(user_control, skills_idle)
+
 
 # --- Mode ---
 
 def main():
     # turn_tuner()
-    match()
+    # match()
+    skills()
     # driver()
     # auto_on_button()
 
