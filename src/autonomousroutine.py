@@ -301,7 +301,7 @@ def autonomous():
     arm_wait()
     log("arm at carry, %d" % arm_motor.position(DEGREES))
     settle()
-    turn(88.5 * AUTO_SIDE)
+    turn(AUTO_GOAL_TURN_DEG * AUTO_SIDE)
     log("turned")
     settle()
     drive_until_collision()

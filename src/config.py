@@ -38,6 +38,7 @@ AUTO_DRIVE_SPEED = 50     # percent
 AUTO_TURN_SPEED = 25      # percent -- a slow turn coasts past its target far less
 AUTO_LEG_MM = 1000        # S->A and A->B
 AUTO_TURN_DEG = 90        # positive = right
+AUTO_GOAL_TURN_DEG = 90.5  # the turn towards the goal in autonomous (was 88.5; +2 deg)
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
 WALL_SQUARE_PUSH_MS = 1500 # keep pushing once both bumpers are in, so both sides seat (1.5 sec)
