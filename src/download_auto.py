@@ -48,7 +48,7 @@ AUTO_TURN_DEG = 90        # positive = right
 AUTO_GOAL_TURN_DEG = 90.5  # the turn towards the goal in autonomous (was 88.5; +2 deg)
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
-WALL_SQUARE_PUSH_MS = 1500 # keep pushing once both bumpers are in, so both sides seat (1.5 sec)
+WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
@@ -70,7 +70,7 @@ AUTO_BACKOFF_MM = 150
 
 # Front collision handling
 COLLISION_BACKOFF_MM = 75  # 7.5cm back when front bumper hits
-COLLISION_EXTRA_MM = 150   # drive at most AUTO_LEG2_MM plus this before giving up on the bumper
+COLLISION_MAX_MS = 6000    # wait this long for the front bumper before giving up (time, not distance)
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -103,6 +103,8 @@ claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
+TOGGLE_AUTO_SPEED = 80     # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
+TOGGLE_WALL_PUSH_PCT = 20  # drive pressed into the wall while the toggle spins, so the robot can't swing
 TOGGLE_AUTO_TURNS = 2      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 
@@ -498,29 +500,25 @@ def open_claw():
     wait(AUTO_CLAW_OPEN_MS, MSEC)
     claw_motor.stop()
 
-def drive_until_collision(speed=AUTO_GOAL_SPEED, max_mm=None):
-    """Drive straight to the front bumper in one move, then back off at once with the arm lowering."""
-    if max_mm is None:
-        max_mm = AUTO_LEG2_MM + COLLISION_EXTRA_MM
-    start_deg = (left_motor.position(DEGREES) + right_motor.position(DEGREES)) / 2.0
-    max_deg = wheel_degrees_for_distance(max_mm)
+def drive_until_collision(speed=AUTO_GOAL_SPEED, max_ms=COLLISION_MAX_MS):
+    """Drive straight until the front bumper is pressed (waits up to max_ms), then back off with the arm lowering."""
+    start = brain.timer.time(MSEC)
 
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
     bumper_status("driving to the button")
-    log("driving forward until the front bumper hits (max %d mm)" % max_mm)
+    log("driving forward until the front bumper hits (waits up to %d ms)" % max_ms)
 
     left_motor.spin(FORWARD, speed, PERCENT)
     right_motor.spin(FORWARD, speed, PERCENT)
 
     while True:
-        travelled = (left_motor.position(DEGREES) + right_motor.position(DEGREES)) / 2.0 - start_deg
         if bumper_front.pressing():
             log("FRONT COLLISION DETECTED")
             bumper_status("HIT")
             break
-        if travelled > max_deg:
-            log("no collision within %d mm, carrying on" % max_mm)
+        if brain.timer.time(MSEC) - start > max_ms:
+            log("NO COLLISION in %d ms, carrying on" % max_ms)
             break
         wait(10, MSEC)
 
@@ -543,7 +541,7 @@ def toggle_start(rotations=TOGGLE_AUTO_TURNS):
     toggle_motor.set_max_torque(100, PERCENT)
     toggle_motor.set_timeout(4000, MSEC)
     toggle_motor.reset_position()
-    toggle_motor.spin_for(REVERSE, rotations, TURNS, 100, PERCENT, wait=False)
+    toggle_motor.spin_for(REVERSE, rotations, TURNS, TOGGLE_AUTO_SPEED, PERCENT, wait=False)
 
 def toggle_wait():
     """Block until the toggle motor has finished (or timed out)."""
@@ -561,7 +559,13 @@ def autonomous():
     # Flip the toggle (and lift the arm meanwhile) before going forward.
     toggle_start()
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
+    # Keep the back pressed into the wall so the toggle's kick can't swing the robot.
+    left_motor.spin(REVERSE, TOGGLE_WALL_PUSH_PCT, PERCENT)
+    right_motor.spin(REVERSE, TOGGLE_WALL_PUSH_PCT, PERCENT)
     toggle_wait()
+    # Then go back until both back bumpers are in again, whatever the toggle did.
+    square_to_wall(0)
+    log("re-squared after toggle")
     log("toggle done: %.2f rotations" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))

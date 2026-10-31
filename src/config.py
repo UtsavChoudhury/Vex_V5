@@ -41,7 +41,7 @@ AUTO_TURN_DEG = 90        # positive = right
 AUTO_GOAL_TURN_DEG = 90.5  # the turn towards the goal in autonomous (was 88.5; +2 deg)
 
 WALL_SQUARE_SPEED = 30    # percent, backing into the wall
-WALL_SQUARE_PUSH_MS = 1500 # keep pushing once both bumpers are in, so both sides seat (1.5 sec)
+WALL_SQUARE_PUSH_MS = 300  # keep pushing once both bumpers are in, so both sides seat
 WALL_SQUARE_MAX_MS = 4000 # no wall by then = stop and skip the rest of autonomous
 
 AUTO_ARM_LIFT_DEG = 90    # motor degrees, "slightly up"
@@ -63,7 +63,7 @@ AUTO_BACKOFF_MM = 150
 
 # Front collision handling
 COLLISION_BACKOFF_MM = 75  # 7.5cm back when front bumper hits
-COLLISION_EXTRA_MM = 150   # drive at most AUTO_LEG2_MM plus this before giving up on the bumper
+COLLISION_MAX_MS = 6000    # wait this long for the front bumper before giving up (time, not distance)
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -96,6 +96,8 @@ claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 TOGGLE_PORT = Ports.PORT8
 TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
 toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
+TOGGLE_AUTO_SPEED = 80     # percent in autonomous (manual L1/L2 stay at 100): less kick on the chassis
+TOGGLE_WALL_PUSH_PCT = 20  # drive pressed into the wall while the toggle spins, so the robot can't swing
 TOGGLE_AUTO_TURNS = 2      # autonomous spins it backward (like L2) this many motor rotations before moving
 
 
