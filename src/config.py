@@ -62,6 +62,7 @@ AUTO_BACKOFF_MM = 150
 
 # Front collision handling
 COLLISION_BACKOFF_MM = 75  # 7.5cm back when front bumper hits
+COLLISION_EXTRA_MM = 150   # drive at most AUTO_LEG2_MM plus this before giving up on the bumper
 
 MOTOR_MAX_DPS = 1200.0
 

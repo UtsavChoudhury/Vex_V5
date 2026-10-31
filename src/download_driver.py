@@ -69,6 +69,7 @@ AUTO_BACKOFF_MM = 150
 
 # Front collision handling
 COLLISION_BACKOFF_MM = 75  # 7.5cm back when front bumper hits
+COLLISION_EXTRA_MM = 150   # drive at most AUTO_LEG2_MM plus this before giving up on the bumper
 
 MOTOR_MAX_DPS = 1200.0
 
@@ -496,33 +497,37 @@ def open_claw():
     wait(AUTO_CLAW_OPEN_MS, MSEC)
     claw_motor.stop()
 
-def drive_until_collision(speed=AUTO_GOAL_SPEED):
-    """Drive forward until front bumper is pressed."""
+def drive_until_collision(speed=AUTO_GOAL_SPEED, max_mm=None):
+    """Drive straight to the front bumper in one move, then back off at once with the arm lowering."""
+    if max_mm is None:
+        max_mm = AUTO_LEG2_MM + COLLISION_EXTRA_MM
+    start_deg = (left_motor.position(DEGREES) + right_motor.position(DEGREES)) / 2.0
+    max_deg = wheel_degrees_for_distance(max_mm)
+
     left_motor.set_stopping(HOLD)
     right_motor.set_stopping(HOLD)
-    left_motor.set_timeout(600000, MSEC)
-    right_motor.set_timeout(600000, MSEC)
-
-    bumper_status("moving until hit")
-    log("driving forward until front bumper is hit...")
+    bumper_status("driving to the button")
+    log("driving forward until the front bumper hits (max %d mm)" % max_mm)
 
     left_motor.spin(FORWARD, speed, PERCENT)
     right_motor.spin(FORWARD, speed, PERCENT)
 
     while True:
+        travelled = (left_motor.position(DEGREES) + right_motor.position(DEGREES)) / 2.0 - start_deg
         if bumper_front.pressing():
             log("FRONT COLLISION DETECTED")
-            left_motor.stop()
-            right_motor.stop()
-            bumper_status("HIT - backing up")
-            settle(100)
-            drive(-COLLISION_BACKOFF_MM, AUTO_GOAL_SPEED)
-            settle()
-            bumper_status("lowering claw")
-            arm_to(AUTO_ARM_PLACE_DEG)
-            log("claw lowered after collision")
+            bumper_status("HIT")
+            break
+        if travelled > max_deg:
+            log("no collision within %d mm, carrying on" % max_mm)
             break
         wait(10, MSEC)
+
+    # Straight into the reverse, no stop in between; the arm lowers while backing off.
+    arm_to(AUTO_ARM_PLACE_DEG, wait=False)
+    drive(-COLLISION_BACKOFF_MM, AUTO_GOAL_SPEED)
+    arm_wait()
+    log("backed off, arm lowered")
 
 AUTO_SIDE = 1               # +1 goal on the right, -1 on the left
 
@@ -563,8 +568,6 @@ def autonomous():
     settle()
     turn(88.5 * AUTO_SIDE)
     log("turned")
-    settle()
-    drive(AUTO_LEG2_MM, AUTO_GOAL_SPEED)
     settle()
     drive_until_collision()
     log("arm at place, %d" % arm_motor.position(DEGREES))
