@@ -542,6 +542,7 @@ def toggle_start(rotations=TOGGLE_AUTO_TURNS):
     toggle_motor.set_stopping(BRAKE)
     toggle_motor.set_max_torque(100, PERCENT)
     toggle_motor.set_timeout(4000, MSEC)
+    toggle_motor.reset_position()
     toggle_motor.spin_for(REVERSE, rotations, TURNS, 100, PERCENT, wait=False)
 
 def toggle_wait():
@@ -561,7 +562,7 @@ def autonomous():
     toggle_start()
     arm_to(AUTO_ARM_CARRY_DEG, wait=False)
     toggle_wait()
-    log("toggle done")
+    log("toggle done: %.2f rotations" % toggle_motor.position(TURNS))
     drive(AUTO_LEG1_MM, AUTO_GOAL_SPEED)
     log("leg 1 done, arm %d" % arm_motor.position(DEGREES))
     arm_wait()
