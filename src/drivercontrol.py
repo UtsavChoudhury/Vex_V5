@@ -194,6 +194,8 @@ def user_control():
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
     manipulator_init()
+    toggle_motor.set_stopping(BRAKE)
+    toggle_motor.set_max_torque(100, PERCENT)
 
     forward_power = 0.0
     turn_power = 0.0
@@ -330,6 +332,14 @@ def user_control():
             claw_motor.stop()
         else:
             claw_motor.spin(FORWARD, claw_power, PERCENT)
+
+        # Toggle motor: L1 (top) forward, L2 (bottom) backward, full power, no limits.
+        if controller.buttonL1.pressing():
+            toggle_motor.spin(FORWARD, 100, PERCENT)
+        elif controller.buttonL2.pressing():
+            toggle_motor.spin(REVERSE, 100, PERCENT)
+        else:
+            toggle_motor.stop()
 
         if MOTOR_DIAGNOSTIC:
             diag_tick = diag_tick + 1

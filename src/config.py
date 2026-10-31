@@ -90,6 +90,11 @@ CLAW_INVERT = True
 arm_motor = Motor(ARM_PORT, GearSetting.RATIO_36_1, ARM_INVERT)
 claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 
+# Toggle spinner: no limits. L1 spins it forward, L2 backward, at full power.
+TOGGLE_PORT = Ports.PORT8
+TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
+toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
+
 
 # --- Driver tuning ---
 

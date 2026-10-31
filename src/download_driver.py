@@ -97,6 +97,11 @@ CLAW_INVERT = True
 arm_motor = Motor(ARM_PORT, GearSetting.RATIO_36_1, ARM_INVERT)
 claw_motor = Motor(CLAW_PORT, GearSetting.RATIO_36_1, CLAW_INVERT)
 
+# Toggle spinner: no limits. L1 spins it forward, L2 backward, at full power.
+TOGGLE_PORT = Ports.PORT8
+TOGGLE_INVERT = False      # flip if L1 spins it the wrong way
+toggle_motor = Motor(TOGGLE_PORT, GearSetting.RATIO_18_1, TOGGLE_INVERT)
+
 
 # --- Driver tuning ---
 
@@ -1111,6 +1116,8 @@ def user_control():
     left_motor.set_stopping(BRAKE)
     right_motor.set_stopping(BRAKE)
     manipulator_init()
+    toggle_motor.set_stopping(BRAKE)
+    toggle_motor.set_max_torque(100, PERCENT)
 
     forward_power = 0.0
     turn_power = 0.0
@@ -1248,6 +1255,14 @@ def user_control():
         else:
             claw_motor.spin(FORWARD, claw_power, PERCENT)
 
+        # Toggle motor: L1 (top) forward, L2 (bottom) backward, full power, no limits.
+        if controller.buttonL1.pressing():
+            toggle_motor.spin(FORWARD, 100, PERCENT)
+        elif controller.buttonL2.pressing():
+            toggle_motor.spin(REVERSE, 100, PERCENT)
+        else:
+            toggle_motor.stop()
+
         if MOTOR_DIAGNOSTIC:
             diag_tick = diag_tick + 1
             if diag_tick >= 10:          # ~5 Hz, slow enough to read
@@ -1349,7 +1364,7 @@ def main():
     # cone_detector()
     # turn_tuner()
     # match()
-    # driver()
-    auto_on_button()
+    driver()
+    # auto_on_button()
 
 driver()
