@@ -544,6 +544,10 @@ def set_auto_side(side):
     global AUTO_SIDE
     AUTO_SIDE = side
 
+def auto_side_text():
+    """Which way autonomous will go, for the screens."""
+    return "RIGHT >" if AUTO_SIDE > 0 else "< LEFT"
+
 def toggle_start(rotations=TOGGLE_AUTO_TURNS):
     """Spin the toggle motor backward (L2 direction) a set number of rotations, without waiting."""
     toggle_motor.set_stopping(HOLD)      # servo to the target, so it can't coast on past a rotation
@@ -707,6 +711,7 @@ def user_control(arrow_reruns=False):
     brain.screen.print("Slow Drive / Fast Turn")
     brain.screen.next_row()
     brain.screen.print("L=port6  R=port4  invert=" + str(INVERT_DRIVE))
+    screen_line(10, "autonomous goes: " + auto_side_text())
     if arrow_reruns:
         brain.screen.next_row()
         brain.screen.print("< / > = run auto again")
@@ -937,22 +942,30 @@ def auto_on_button():
     show_both(1, "AUTO done")
     user_control(True)
 
-def match():
-    """Slot 3: pick the goal side with an arrow before the match; field control does the rest."""
-    global competition
-    confirm_zero()
-    competition = Competition(user_control, autonomous)
+def choose_side():
+    """Load the pin with the right stick, then press the arrow towards the goal."""
     brain.screen.clear_screen()
     controller.screen.clear_screen()
-    show_both(1, "goal side: RIGHT >")
+    show_both(1, "GOAL SIDE: < or >", "Rstick<> = claw")
     claw_motor.set_stopping(HOLD)
-    while not competition.is_enabled():
+    side = 0
+    while side == 0:
         claw_by_stick()
         side = read_side()
-        if side != 0:
-            set_auto_side(side)
-            show_both(1, "goal side: RIGHT >" if side > 0 else "goal side: < LEFT")
         wait(20, MSEC)
+    claw_motor.stop()
+    while read_side() != 0:
+        wait(20, MSEC)
+    set_auto_side(side)
+
+def match():
+    """Slot 3: do all the setup BEFORE plugging in the field cable; the field then runs the rest.
+    A disabled robot ignores the controller, so nothing can be answered once the field holds it."""
+    global competition
+    confirm_zero()
+    choose_side()
+    show_both(1, "side: " + auto_side_text(), "now plug in the field")
+    competition = Competition(user_control, autonomous)
 
 
 # --- Mode ---

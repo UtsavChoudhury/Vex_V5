@@ -275,6 +275,10 @@ def set_auto_side(side):
     global AUTO_SIDE
     AUTO_SIDE = side
 
+def auto_side_text():
+    """Which way autonomous will go, for the screens."""
+    return "RIGHT >" if AUTO_SIDE > 0 else "< LEFT"
+
 def toggle_start(rotations=TOGGLE_AUTO_TURNS):
     """Spin the toggle motor backward (L2 direction) a set number of rotations, without waiting."""
     toggle_motor.set_stopping(HOLD)      # servo to the target, so it can't coast on past a rotation

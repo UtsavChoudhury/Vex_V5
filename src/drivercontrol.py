@@ -2,7 +2,7 @@
 
 from vex import *
 from config import *
-from autonomousroutine import autonomous, set_auto_side
+from autonomousroutine import autonomous, set_auto_side, auto_side_text
 
 
 # --- Driver helpers ---
@@ -90,6 +90,7 @@ def user_control(arrow_reruns=False):
     brain.screen.print("Slow Drive / Fast Turn")
     brain.screen.next_row()
     brain.screen.print("L=port6  R=port4  invert=" + str(INVERT_DRIVE))
+    screen_line(10, "autonomous goes: " + auto_side_text())
     if arrow_reruns:
         brain.screen.next_row()
         brain.screen.print("< / > = run auto again")
